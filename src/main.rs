@@ -10,7 +10,9 @@ use gtk::prelude::*;
 
 mod tray_icon;
 mod audio_stream;
+mod whisper;
 use audio_stream::AudioStream;
+use whisper::WhisperTranscriber;
 
 fn main() {
     println!("Voice Input Application");
@@ -20,6 +22,19 @@ fn main() {
     if let Err(e) = tray_icon::init_tray_icon() {
         eprintln!("Failed to initialize tray icon: {}", e);
     }
+
+    // Initialize the WhisperTranscriber
+    // The model will be downloaded automatically if it doesn't exist
+    // Models are downloaded from: https://huggingface.co/ggerganov/whisper.cpp
+    let model_path = "ggml-base.en.bin"; // Change this to use a different model
+    let transcriber = match WhisperTranscriber::new(model_path) {
+        Ok(t) => Some(t),
+        Err(e) => {
+            eprintln!("Failed to initialize WhisperTranscriber: {}", e);
+            eprintln!("Audio transcription will be disabled");
+            None
+        }
+    };
 
     // Initialize device state for keyboard monitoring
     let device_state = DeviceState::new();
@@ -103,6 +118,20 @@ fn main() {
 
                 writer.finalize().expect("Failed to finalize WAV file");
                 println!("Recording saved successfully to {}", filename);
+
+                // Transcribe the audio file if transcriber is available
+                if let Some(ref t) = transcriber {
+                    match t.transcribe_audio(&filename) {
+                        Ok(transcript) => {
+                            println!("Transcription successful");
+                            println!("Transcript preview: {}", 
+                                     transcript.lines().take(2).collect::<Vec<_>>().join(" "));
+                        },
+                        Err(e) => {
+                            eprintln!("Failed to transcribe audio: {}", e);
+                        }
+                    }
+                }
             } else {
                 println!("No audio recorded");
             }

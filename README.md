@@ -37,6 +37,7 @@ For Ubuntu/Debian/Pop!_OS 22.04 and newer:
 ```bash
 sudo apt-get install libgtk-3-dev libatk1.0-dev libcairo2-dev libayatana-appindicator3-dev
 sudo apt install -y libasound2-dev
+sudo apt install libclang-14-dev
 ```
 
 For older Ubuntu/Debian versions (before 22.04):
