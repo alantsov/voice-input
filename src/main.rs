@@ -5,21 +5,113 @@ use device_query::{DeviceQuery, DeviceState, Keycode};
 use chrono::Local;
 use std::fs::File;
 use std::io::{BufWriter, Write};
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use cpal::{Sample, SampleFormat};
+use hound::{WavSpec, WavWriter};
 
-// Dummy audio stream implementation
-struct DummyStream;
+// Audio stream implementation for microphone recording
+struct AudioStream {
+    stream: Option<cpal::Stream>,
+    samples: Arc<Mutex<Vec<f32>>>,
+    recording: Arc<Mutex<bool>>,
+    sample_rate: u32,
+    channels: u16,
+}
 
-impl DummyStream {
-    fn new() -> Self {
-        DummyStream
+impl AudioStream {
+    fn new(samples: Arc<Mutex<Vec<f32>>>, recording: Arc<Mutex<bool>>) -> Result<Self, String> {
+        Ok(AudioStream {
+            stream: None,
+            samples,
+            recording,
+            sample_rate: 44100, // Default value, will be updated when stream is created
+            channels: 1,        // Default value, will be updated when stream is created
+        })
     }
 
-    fn play(&self) -> Result<(), String> {
+    fn play(&mut self) -> Result<(), String> {
+        let host = cpal::default_host();
+
+        // Get the default input device
+        let device = host.default_input_device()
+            .ok_or_else(|| "No input device available".to_string())?;
+
+        println!("Using input device: {}", device.name().map_err(|e| e.to_string())?);
+
+        // Get the default config for the device
+        let config = device.default_input_config()
+            .map_err(|e| e.to_string())?;
+
+        println!("Default input config: {:?}", config);
+
+        // Store the sample rate and channels for WAV file creation
+        self.sample_rate = config.sample_rate().0;
+        self.channels = config.channels();
+
+        let samples = self.samples.clone();
+        let recording = self.recording.clone();
+
+        // Create a stream for recording
+        let err_fn = move |err| {
+            eprintln!("an error occurred on the input audio stream: {}", err);
+        };
+
+        let stream = match config.sample_format() {
+            SampleFormat::F32 => device.build_input_stream(
+                &config.into(),
+                move |data: &[f32], _: &cpal::InputCallbackInfo| {
+                    if *recording.lock().unwrap() {
+                        let mut samples_lock = samples.lock().unwrap();
+                        samples_lock.extend_from_slice(data);
+                    }
+                },
+                err_fn,
+                None
+            ),
+            SampleFormat::I16 => device.build_input_stream(
+                &config.into(),
+                move |data: &[i16], _: &cpal::InputCallbackInfo| {
+                    if *recording.lock().unwrap() {
+                        let mut samples_lock = samples.lock().unwrap();
+                        samples_lock.extend(data.iter().map(|&s| s as f32 / 32768.0));
+                    }
+                },
+                err_fn,
+                None
+            ),
+            SampleFormat::U16 => device.build_input_stream(
+                &config.into(),
+                move |data: &[u16], _: &cpal::InputCallbackInfo| {
+                    if *recording.lock().unwrap() {
+                        let mut samples_lock = samples.lock().unwrap();
+                        samples_lock.extend(data.iter().map(|&s| (s as f32 / 65535.0) * 2.0 - 1.0));
+                    }
+                },
+                err_fn,
+                None
+            ),
+            _ => return Err("Unsupported sample format".to_string()),
+        }.map_err(|e| e.to_string())?;
+
+        stream.play().map_err(|e| e.to_string())?;
+        self.stream = Some(stream);
+
         Ok(())
     }
 
-    fn pause(&self) -> Result<(), String> {
+    fn pause(&mut self) -> Result<(), String> {
+        if let Some(stream) = self.stream.take() {
+            drop(stream);
+        }
         Ok(())
+    }
+
+    fn get_sample_rate(&self) -> u32 {
+        self.sample_rate
+    }
+
+    fn get_channels(&self) -> u16 {
+        self.channels
     }
 }
 
@@ -31,12 +123,13 @@ fn main() {
     let device_state = DeviceState::new();
     let mut f1_pressed = false;
 
-    // Buffer to store recorded samples (dummy data for demonstration)
+    // Buffer to store recorded samples
     let recorded_samples = Arc::new(Mutex::new(Vec::new()));
     let recording = Arc::new(Mutex::new(false));
 
-    // Create a dummy audio stream
-    let stream = DummyStream::new();
+    // Create an audio stream for microphone recording
+    let mut stream = AudioStream::new(recorded_samples.clone(), recording.clone())
+        .expect("Failed to create audio stream");
 
     println!("Waiting for F1 key...");
 
@@ -90,24 +183,24 @@ fn main() {
             if !samples.is_empty() {
                 println!("Saving recording to {}", filename);
 
-                // Create a dummy file instead of a WAV file
-                let file = File::create(&filename).expect("Failed to create file");
-                let mut writer = BufWriter::new(file);
+                // Create a WAV file
+                let spec = WavSpec {
+                    channels: stream.get_channels(),
+                    sample_rate: stream.get_sample_rate(),
+                    bits_per_sample: 32,
+                    sample_format: hound::SampleFormat::Float,
+                };
 
-                // Write a simple text representation of the samples
-                writeln!(writer, "Dummy audio recording with {} samples", samples.len())
-                    .expect("Failed to write to file");
+                let mut writer = WavWriter::create(&filename, spec)
+                    .expect("Failed to create WAV file");
 
-                for (i, sample) in samples.iter().enumerate().take(10) {
-                    writeln!(writer, "Sample {}: {}", i, sample)
-                        .expect("Failed to write sample");
+                // Write the samples to the WAV file
+                for &sample in &samples {
+                    writer.write_sample(sample).expect("Failed to write sample");
                 }
 
-                writeln!(writer, "... (more samples)")
-                    .expect("Failed to write to file");
-
-                writer.flush().expect("Failed to flush writer");
-                println!("Recording saved successfully (dummy file)");
+                writer.finalize().expect("Failed to finalize WAV file");
+                println!("Recording saved successfully to {}", filename);
             } else {
                 println!("No audio recorded");
             }
