@@ -7,6 +7,11 @@ use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::SampleFormat;
 use hound::{WavSpec, WavWriter};
 
+#[cfg(feature = "tray-icon")]
+use gtk::prelude::*;
+
+mod tray_icon;
+
 // Audio stream implementation for microphone recording
 struct AudioStream {
     stream: Option<cpal::Stream>,
@@ -115,11 +120,16 @@ impl AudioStream {
 
 fn main() {
     println!("Voice Input Application");
-    println!("Press F1 to start recording, release to save");
+    println!("Press F12 to start recording, release to save");
+
+    // Initialize the system tray icon if the feature is enabled
+    if let Err(e) = tray_icon::init_tray_icon() {
+        eprintln!("Failed to initialize tray icon: {}", e);
+    }
 
     // Initialize device state for keyboard monitoring
     let device_state = DeviceState::new();
-    let mut f1_pressed = false;
+    let mut f12_pressed = false;
 
     // Buffer to store recorded samples
     let recorded_samples = Arc::new(Mutex::new(Vec::new()));
@@ -129,17 +139,17 @@ fn main() {
     let mut stream = AudioStream::new(recorded_samples.clone(), recording.clone())
         .expect("Failed to create audio stream");
 
-    println!("Waiting for F1 key...");
+    println!("Waiting for F12 key...");
 
     // Main loop to monitor keyboard events
     loop {
         let keys = device_state.get_keys();
-        let is_f1_pressed = keys.contains(&Keycode::F12);
+        let is_f12_pressed = keys.contains(&Keycode::F12);
 
-        // F1 key was just pressed
-        if is_f1_pressed && !f1_pressed {
-            println!("F1 pressed - Recording started");
-            f1_pressed = true;
+        // F12 key was just pressed
+        if is_f12_pressed && !f12_pressed {
+            println!("F12 pressed - Recording started");
+            f12_pressed = true;
 
             // Clear previous recording and start new one
             {
@@ -158,10 +168,10 @@ fn main() {
             }
         }
 
-        // F1 key was just released
-        if !is_f1_pressed && f1_pressed {
-            println!("F1 released - Recording stopped");
-            f1_pressed = false;
+        // F12 key was just released
+        if !is_f12_pressed && f12_pressed {
+            println!("F12 released - Recording stopped");
+            f12_pressed = false;
 
             // Stop recording
             {
@@ -201,6 +211,15 @@ fn main() {
                 println!("Recording saved successfully to {}", filename);
             } else {
                 println!("No audio recorded");
+            }
+        }
+
+        // Process GTK events if the tray-icon feature is enabled
+        #[cfg(feature = "tray-icon")]
+        {
+            // Process any pending GTK events without blocking
+            while gtk::events_pending() {
+                gtk::main_iteration_do(false);
             }
         }
 
