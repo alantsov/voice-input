@@ -3,10 +3,8 @@ use std::thread;
 use std::time::Duration;
 use device_query::{DeviceQuery, DeviceState, Keycode};
 use chrono::Local;
-use std::fs::File;
-use std::io::{BufWriter, Write};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::{Sample, SampleFormat};
+use cpal::SampleFormat;
 use hound::{WavSpec, WavWriter};
 
 // Audio stream implementation for microphone recording
