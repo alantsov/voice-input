@@ -18,8 +18,12 @@ use gtk::prelude::*;
 mod tray_icon;
 mod audio_stream;
 mod whisper;
+mod keyboard_layout;
+
 use audio_stream::AudioStream;
 use whisper::WhisperTranscriber;
+use keyboard_layout::KeyboardLayoutDetector;
+
 
 /// Detect the current keyboard layout and return its language code
 // Define a type for keyboard events we're interested in
@@ -71,105 +75,6 @@ fn simulate_typing(text: &str) {
     }
 }
 
-fn detect_keyboard_layout() -> Result<String, String> {
-    // This is a simplified implementation that uses the system locale as a fallback
-    // In a real implementation, you would use the input-linux crate to detect the keyboard layout
-
-    // For now, we'll use the system locale as a fallback
-    let locale = get_locale().unwrap_or_else(|| String::from("en-US"));
-
-    // Try to detect the active keyboard layout using xkb-switch
-    let output = match std::process::Command::new("xkb-switch")
-        .output() {
-        Ok(output) => {
-            if output.status.success() {
-                let layout_code = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                println!("xkb-switch output: {}", layout_code);
-
-                // Map layout codes to language codes
-                match layout_code.as_str() {
-                    "us" | "gb" => Some("en".to_string()),
-                    "de" => Some("de".to_string()),
-                    "fr" => Some("fr".to_string()),
-                    "es" => Some("es".to_string()),
-                    "it" => Some("it".to_string()),
-                    "ru" => Some("ru".to_string()),
-                    _ => {
-                        println!("Unknown keyboard layout: {}, falling back to /etc/default/keyboard", layout_code);
-                        // If we can't determine the language from the active layout, fall back to /etc/default/keyboard
-                        None
-                    }
-                }
-            } else {
-                println!("xkb-switch command failed, falling back to /etc/default/keyboard");
-                None
-            }
-        },
-        Err(e) => {
-            println!("Failed to execute xkb-switch: {}, falling back to /etc/default/keyboard", e);
-            None
-        }
-    };
-
-    // If we got a language from xkb-switch, use it
-    if let Some(lang) = output {
-        println!("Detected keyboard layout language from xkb-switch: {}", lang);
-        return Ok(lang);
-    }
-
-    // Fall back to /etc/default/keyboard if xkb-switch failed
-    println!("Falling back to /etc/default/keyboard");
-    let keyboard_layout = match std::fs::read_to_string("/etc/default/keyboard") {
-        Ok(content) => {
-            // Parse the keyboard layout from the file
-            // Look for XKBLAYOUT=xx pattern
-            if let Some(layout_line) = content.lines().find(|line| line.starts_with("XKBLAYOUT=")) {
-                // Extract the layout code (everything after XKBLAYOUT=)
-                let layout_code = layout_line.trim_start_matches("XKBLAYOUT=").trim_matches('"');
-                println!("Found layout code in /etc/default/keyboard: {}", layout_code);
-
-                // Map layout codes to language codes
-                match layout_code {
-                    "us" | "gb" => "en".to_string(),
-                    "de" => "de".to_string(),
-                    "fr" => "fr".to_string(),
-                    "es" => "es".to_string(),
-                    "it" => "it".to_string(),
-                    "ru" => "ru".to_string(),
-                    _ => {
-                        println!("Unknown keyboard layout: {}, falling back to locale", layout_code);
-                        // If we can't determine the language from the layout, fall back to the system locale
-                        if locale.len() >= 2 {
-                            locale[0..2].to_string()
-                        } else {
-                            "en".to_string()
-                        }
-                    }
-                }
-            } else {
-                println!("Could not find XKBLAYOUT in keyboard configuration, falling back to locale");
-                // If we can't find the layout in the file, fall back to the system locale
-                if locale.len() >= 2 {
-                    locale[0..2].to_string()
-                } else {
-                    "en".to_string()
-                }
-            }
-        },
-        Err(e) => {
-            println!("Could not read keyboard configuration: {}, falling back to locale", e);
-            // If we can't read the file, fall back to the system locale
-            if locale.len() >= 2 {
-                locale[0..2].to_string()
-            } else {
-                "en".to_string()
-            }
-        }
-    };
-
-    println!("Detected keyboard layout language: {}", keyboard_layout);
-    Ok(keyboard_layout)
-}
 
 fn main() {
     println!("Voice Input Application");
@@ -181,7 +86,7 @@ fn main() {
     }
 
     // Detect keyboard layout language
-    let keyboard_language = detect_keyboard_layout().unwrap_or_else(|_| String::from("en"));
+    let keyboard_language = KeyboardLayoutDetector::detect_language().unwrap_or_else(|_| String::from("en"));
 
     // Extract language code from keyboard layout (first 2 characters)
     let language_code = if keyboard_language.len() >= 2 {
