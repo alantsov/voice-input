@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{Write, copy, Read};
+use std::io::{Write, Read};
 use std::path::Path;
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext};
 use reqwest::blocking::Client;

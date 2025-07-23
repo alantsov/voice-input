@@ -1,12 +1,10 @@
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
-use device_query::{DeviceQuery, DeviceState, Keycode};
 use chrono::Local;
 use hound::{WavSpec, WavWriter};
-use sys_locale::get_locale;
 use rdev::{listen, Event, EventType, Key};
-use std::sync::mpsc::{channel, Sender, Receiver};
+use std::sync::mpsc::{channel, Sender};
 use lazy_static::lazy_static;
 // Note: The enigo crate requires the libxdo-dev package on Linux
 // Install it with: sudo apt-get install libxdo-dev
@@ -18,8 +16,6 @@ thread_local! {
     static CURRENT_LANGUAGE: RefCell<String> = RefCell::new(String::from("en"));
 }
 
-#[cfg(feature = "tray-icon")]
-use gtk::prelude::*;
 
 mod tray_icon;
 mod audio_stream;

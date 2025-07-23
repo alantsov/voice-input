@@ -5,12 +5,6 @@ use gtk::{AboutDialog, Menu, MenuItem, SeparatorMenuItem, CheckMenuItem};
 #[cfg(feature = "tray-icon")]
 use libappindicator::{AppIndicator, AppIndicatorStatus};
 #[cfg(feature = "tray-icon")]
-use glib;
-#[cfg(feature = "tray-icon")]
-use glib::ControlFlow;
-#[cfg(feature = "tray-icon")]
-use std::sync::{Arc, Mutex};
-#[cfg(feature = "tray-icon")]
 use std::path::Path;
 #[cfg(feature = "tray-icon")]
 use std::thread;
@@ -156,29 +150,6 @@ pub fn init_tray_icon() -> Result<(), String> {
     Ok(())
 }
 
-#[cfg(feature = "tray-icon")]
-fn get_model_filename(model: &str) -> String {
-    match model {
-        "base" | "small" | "medium" => {
-            // For base, small, medium: both English and multilingual models
-            // Check if we need English or multilingual model based on the detected language
-            let language = crate::CURRENT_LANGUAGE.with(|lang| lang.borrow().clone());
-            if language == "en" {
-                format!("ggml-{}.en.bin", model)
-            } else {
-                format!("ggml-{}.bin", model)
-            }
-        },
-        "large" => {
-            // For large: only multilingual model
-            format!("ggml-{}-v3-turbo.bin", model)
-        },
-        _ => {
-            // Default to base model
-            "ggml-base.bin".to_string()
-        }
-    }
-}
 
 #[cfg(feature = "tray-icon")]
 fn get_both_model_filenames(model: &str) -> (String, String) {
