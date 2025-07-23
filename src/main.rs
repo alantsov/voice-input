@@ -11,6 +11,12 @@ use lazy_static::lazy_static;
 // Note: The enigo crate requires the libxdo-dev package on Linux
 // Install it with: sudo apt-get install libxdo-dev
 use enigo::{Enigo, KeyboardControllable};
+use std::cell::RefCell;
+
+// Thread-local storage for the current language code
+thread_local! {
+    static CURRENT_LANGUAGE: RefCell<String> = RefCell::new(String::from("en"));
+}
 
 #[cfg(feature = "tray-icon")]
 use gtk::prelude::*;
@@ -85,30 +91,11 @@ fn main() {
         eprintln!("Failed to initialize tray icon: {}", e);
     }
 
-    // Detect keyboard layout language
-    let keyboard_language = KeyboardLayoutDetector::detect_language().unwrap_or_else(|_| String::from("en"));
-
-    // Extract language code from keyboard layout (first 2 characters)
-    let language_code = if keyboard_language.len() >= 2 {
-        keyboard_language[0..2].to_string()
-    } else {
-        String::from("en")
-    };
-    println!("Using language code: {}", language_code);
-
-    // Determine which model to use based on language
-    let is_english = language_code.starts_with("en");
-    let model_path = if is_english {
-        "ggml-base.en.bin"
-    } else {
-        "ggml-base.bin"
-    };
-
-    println!("Using model: {}", model_path);
-
     // Download both models during startup
     let english_model = "ggml-base.en.bin";
     let multilingual_model = "ggml-base.bin";
+
+    println!("Downloading and initializing both models...");
 
     // Download English model if it doesn't exist
     if !std::path::Path::new(english_model).exists() {
@@ -126,13 +113,21 @@ fn main() {
         }
     }
 
-    // Initialize the WhisperTranscriber with the appropriate model
-    // Models are downloaded from: https://huggingface.co/ggerganov/whisper.cpp
-    let transcriber = match WhisperTranscriber::new(model_path) {
+    // Initialize both transcribers
+    let english_transcriber = match WhisperTranscriber::new(english_model) {
         Ok(t) => Some(t),
         Err(e) => {
-            eprintln!("Failed to initialize WhisperTranscriber: {}", e);
-            eprintln!("Audio transcription will be disabled");
+            eprintln!("Failed to initialize English WhisperTranscriber: {}", e);
+            eprintln!("English transcription will be disabled");
+            None
+        }
+    };
+
+    let multilingual_transcriber = match WhisperTranscriber::new(multilingual_model) {
+        Ok(t) => Some(t),
+        Err(e) => {
+            eprintln!("Failed to initialize Multilingual WhisperTranscriber: {}", e);
+            eprintln!("Multilingual transcription will be disabled");
             None
         }
     };
@@ -171,6 +166,22 @@ fn main() {
                     if !f12_pressed {
                         println!("F12 pressed - Recording started");
                         f12_pressed = true;
+
+                        // Detect keyboard layout language on keydown
+                        let keyboard_language = KeyboardLayoutDetector::detect_language().unwrap_or_else(|_| String::from("en"));
+
+                        // Extract language code from keyboard layout (first 2 characters)
+                        let language_code = if keyboard_language.len() >= 2 {
+                            keyboard_language[0..2].to_string()
+                        } else {
+                            String::from("en")
+                        };
+                        println!("Detected language code: {}", language_code);
+
+                        // Store the language code for later use
+                        CURRENT_LANGUAGE.with(|lang| {
+                            *lang.borrow_mut() = language_code;
+                        });
 
                         // Clear previous recording and start new one
                         {
@@ -231,22 +242,54 @@ fn main() {
                             writer.finalize().expect("Failed to finalize WAV file");
                             println!("Recording saved successfully to {}", filename);
 
-                            // Transcribe the audio file if transcriber is available
-                            if let Some(ref t) = transcriber {
-                                // Pass the language code to the transcribe_audio method
-                                match t.transcribe_audio(&filename, Some(&language_code)) {
-                                    Ok(transcript) => {
-                                        println!("Transcription successful");
-                                        println!("Transcript preview: {}", 
-                                                 transcript.lines().take(2).collect::<Vec<_>>().join(" "));
+                            // Get the current language code
+                            let current_language = CURRENT_LANGUAGE.with(|lang| lang.borrow().clone());
+                            println!("Using language code for transcription: {}", current_language);
 
-                                        // Insert the transcript at the current cursor position
-                                        simulate_typing(&transcript);
-                                        println!("Transcript inserted at cursor position");
-                                    },
-                                    Err(e) => {
-                                        eprintln!("Failed to transcribe audio: {}", e);
+                            // Determine which transcriber to use based on language
+                            let is_english = current_language.starts_with("en");
+
+                            if is_english {
+                                // Use English transcriber
+                                if let Some(ref t) = english_transcriber {
+                                    println!("Using English transcriber");
+                                    match t.transcribe_audio(&filename, Some(&current_language)) {
+                                        Ok(transcript) => {
+                                            println!("Transcription successful");
+                                            println!("Transcript preview: {}", 
+                                                     transcript.lines().take(2).collect::<Vec<_>>().join(" "));
+
+                                            // Insert the transcript at the current cursor position
+                                            simulate_typing(&transcript);
+                                            println!("Transcript inserted at cursor position");
+                                        },
+                                        Err(e) => {
+                                            eprintln!("Failed to transcribe audio: {}", e);
+                                        }
                                     }
+                                } else {
+                                    eprintln!("English transcriber is not available");
+                                }
+                            } else {
+                                // Use multilingual transcriber
+                                if let Some(ref t) = multilingual_transcriber {
+                                    println!("Using multilingual transcriber");
+                                    match t.transcribe_audio(&filename, Some(&current_language)) {
+                                        Ok(transcript) => {
+                                            println!("Transcription successful");
+                                            println!("Transcript preview: {}", 
+                                                     transcript.lines().take(2).collect::<Vec<_>>().join(" "));
+
+                                            // Insert the transcript at the current cursor position
+                                            simulate_typing(&transcript);
+                                            println!("Transcript inserted at cursor position");
+                                        },
+                                        Err(e) => {
+                                            eprintln!("Failed to transcribe audio: {}", e);
+                                        }
+                                    }
+                                } else {
+                                    eprintln!("Multilingual transcriber is not available");
                                 }
                             }
                         } else {
