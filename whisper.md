@@ -76,7 +76,8 @@ These files are stored in the application's working directory for reference.
 
 - **Memory Usage**: By initializing the Whisper model on-demand (when F12 is pressed) rather than at startup, the application reduces memory usage when not actively transcribing.
 - **Model Selection**: Using the English-specific model for English transcription improves performance compared to the larger multilingual model.
-- **Transcription Time**: The time required for transcription depends on the length of the audio and the hardware capabilities (particularly GPU acceleration if available).
+- **GPU Acceleration**: The application uses CUDA GPU acceleration when an NVIDIA GPU is available, significantly improving transcription speed.
+- **Transcription Time**: The time required for transcription depends on the length of the audio and the hardware capabilities. With GPU acceleration, transcription can be several times faster than CPU-only processing.
 
 ## Dependencies
 

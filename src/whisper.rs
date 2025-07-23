@@ -298,6 +298,18 @@ impl WhisperTranscriber {
             .map_err(|e| format!("Failed to create state: {}", e))?;
 
         println!("Starting audio processing...");
+
+        // Check if CUDA is available and being used
+        #[cfg(feature = "cuda_available")]
+        {
+            println!("CUDA GPU acceleration is enabled and will be used");
+        }
+
+        #[cfg(not(feature = "cuda_available"))]
+        {
+            println!("CUDA GPU acceleration is not available, using CPU only");
+        }
+
         let start_time = std::time::Instant::now();
 
         // Process the audio

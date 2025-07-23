@@ -5,6 +5,7 @@ edition = "2021"
 
 [features]
 tray-icon = ["gtk", "libappindicator", "glib"]
+cuda = ["whisper-rs/cuda"]
 
 [dependencies]
 device_query = "1.1.3"
@@ -16,7 +17,7 @@ hound = "3.5.1"
 gtk = { version = "0.18.2", optional = true }
 libappindicator = { version = "0.9.0", optional = true }
 glib = { version = "0.18.2", optional = true }
-whisper-rs = "0.8.0"
+whisper-rs = { version = "0.8.0", features = ["cuda"] }
 reqwest = { version = "0.11", features = ["blocking"] }
 indicatif = "0.17.7"
 sys-locale = "0.3.0"

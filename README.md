@@ -7,6 +7,7 @@ A simple application for recording voice input using the microphone.
 - Press F12 to start recording, release to save
 - Recordings are saved as WAV files with timestamps
 - Transcribes audio and inserts text at cursor position
+- Uses GPU acceleration for faster transcription when available
 - Optional system tray icon support
 
 ## Building
@@ -81,11 +82,11 @@ cargo run
 Or with the system tray icon:
 
 ```bash
-cargo run --features tray-icon
+cargo run --features tray-icon --features cuda
 ```
 
 ### Build with System Tray Icon
 
 ```bash
-cargo build --features tray-icon
+cargo build --features tray-icon --features cuda
 ```
