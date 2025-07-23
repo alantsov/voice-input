@@ -4,23 +4,148 @@ use std::path::Path;
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext};
 use reqwest::blocking::Client;
 use indicatif::{ProgressBar, ProgressStyle};
+use std::process::Command;
 
 pub struct WhisperTranscriber {
     context: WhisperContext,
 }
 
 impl WhisperTranscriber {
+    /// Check if NVIDIA GPU is available and log GPU information
+    fn log_gpu_info() {
+        println!("Checking for GPU availability...");
+
+        // Check for NVIDIA GPU using nvidia-smi
+        match Command::new("nvidia-smi").output() {
+            Ok(output) => {
+                if output.status.success() {
+                    let gpu_info = String::from_utf8_lossy(&output.stdout);
+                    println!("NVIDIA GPU detected. Summary:");
+
+                    // Extract and print relevant GPU information
+                    for line in gpu_info.lines() {
+                        if line.contains("NVIDIA-SMI") || line.contains("GPU Name") || 
+                           line.contains("Driver Version") || line.contains("CUDA Version") {
+                            println!("  {}", line.trim());
+                        }
+                    }
+
+                    // Check GPU memory usage before model loading
+                    println!("GPU memory usage before model loading:");
+                    if let Ok(mem_output) = Command::new("nvidia-smi")
+                        .args(["--query-gpu=memory.used,memory.total", "--format=csv"])
+                        .output() {
+                        println!("  {}", String::from_utf8_lossy(&mem_output.stdout));
+                    }
+                } else {
+                    println!("nvidia-smi command failed. GPU might not be available or drivers not installed.");
+                }
+            },
+            Err(_) => {
+                println!("nvidia-smi command not found. NVIDIA GPU drivers might not be installed.");
+            }
+        }
+
+        // Check for CUDA libraries
+        Self::check_cuda_libraries();
+
+        // Check for other GPU information
+        println!("Checking for other GPU information...");
+        if let Ok(output) = Command::new("lspci").args(["-v"]).output() {
+            let lspci_output = String::from_utf8_lossy(&output.stdout);
+            for line in lspci_output.lines() {
+                if line.contains("VGA") || line.contains("3D") || line.contains("Display") {
+                    println!("  {}", line.trim());
+                }
+            }
+        }
+    }
+
+    /// Check for CUDA libraries in the system
+    fn check_cuda_libraries() {
+        println!("Checking for CUDA libraries...");
+
+        // Check for libcuda.so
+        if let Ok(output) = Command::new("ldconfig").args(["-p"]).output() {
+            let ldconfig_output = String::from_utf8_lossy(&output.stdout);
+            let mut cuda_libs = Vec::new();
+
+            for line in ldconfig_output.lines() {
+                if line.contains("libcuda.so") || line.contains("libcudart.so") || 
+                   line.contains("libnvrtc.so") || line.contains("libcublas.so") {
+                    cuda_libs.push(line.trim());
+                }
+            }
+
+            if !cuda_libs.is_empty() {
+                println!("Found CUDA libraries:");
+                for lib in cuda_libs {
+                    println!("  {}", lib);
+                }
+            } else {
+                println!("No CUDA libraries found in ldconfig cache.");
+            }
+        }
+
+        // Check CUDA_VISIBLE_DEVICES environment variable
+        match std::env::var("CUDA_VISIBLE_DEVICES") {
+            Ok(value) => println!("CUDA_VISIBLE_DEVICES environment variable is set to: {}", value),
+            Err(_) => println!("CUDA_VISIBLE_DEVICES environment variable is not set.")
+        }
+
+        // Try to get CUDA version using nvcc if available
+        match Command::new("nvcc").args(["--version"]).output() {
+            Ok(output) => {
+                if output.status.success() {
+                    println!("NVCC version information:");
+                    println!("  {}", String::from_utf8_lossy(&output.stdout).trim());
+                }
+            },
+            Err(_) => println!("NVCC (CUDA compiler) not found in PATH.")
+        }
+    }
+
     /// Create a new WhisperTranscriber with the specified model path
     /// If the model doesn't exist, it will be downloaded automatically
     pub fn new(model_path: &str) -> Result<Self, String> {
+        // Log GPU information before loading the model
+        Self::log_gpu_info();
+
         // Check if the model exists, download it if it doesn't
         if !Path::new(model_path).exists() {
             println!("Model file not found. Downloading...");
             Self::download_model(model_path)?;
         }
 
+        println!("Loading whisper model: {}", model_path);
+        let start_time = std::time::Instant::now();
+
         let context = WhisperContext::new(model_path)
             .map_err(|e| format!("Failed to create whisper context: {}", e))?;
+
+        let load_duration = start_time.elapsed();
+        println!("Model loaded in {:.2?}", load_duration);
+
+        // Print model information
+        println!("Model information:");
+        println!("  Model type: {}", context.model_type_readable().unwrap_or_else(|_| "Unknown".to_string()));
+        println!("  Is multilingual: {}", context.is_multilingual());
+        println!("  Vocabulary size: {}", context.n_vocab());
+        println!("  Audio context size: {}", context.n_audio_ctx());
+        println!("  Text context size: {}", context.n_text_ctx());
+
+        // Check GPU memory usage after model loading
+        match Command::new("nvidia-smi")
+            .args(["--query-gpu=memory.used,memory.total", "--format=csv"])
+            .output() {
+            Ok(output) => {
+                if output.status.success() {
+                    println!("GPU memory usage after model loading:");
+                    println!("  {}", String::from_utf8_lossy(&output.stdout));
+                }
+            },
+            Err(_) => {}
+        }
 
         Ok(WhisperTranscriber { context })
     }
@@ -121,8 +246,24 @@ impl WhisperTranscriber {
     /// Transcribe audio from a WAV file and save the transcript to a text file
     /// If language is provided, it will be used for transcription
     pub fn transcribe_audio(&self, audio_path: &str, language: Option<&str>) -> Result<String, String> {
+        println!("Starting transcription of audio file: {}", audio_path);
+
+        // Check GPU memory usage before transcription
+        match Command::new("nvidia-smi")
+            .args(["--query-gpu=memory.used,memory.total,utilization.gpu", "--format=csv"])
+            .output() {
+            Ok(output) => {
+                if output.status.success() {
+                    println!("GPU status before transcription:");
+                    println!("  {}", String::from_utf8_lossy(&output.stdout));
+                }
+            },
+            Err(_) => {}
+        }
+
         // Load audio samples from WAV file
         let audio_data = self.load_audio_from_wav(audio_path)?;
+        println!("Loaded audio data: {} samples", audio_data.len());
 
         // Create parameters for transcription
         let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
@@ -132,6 +273,10 @@ impl WhisperTranscriber {
         params.set_print_progress(false);
         params.set_print_realtime(false);
         params.set_print_timestamps(true);
+
+        // Set number of threads to use (4 is a common default)
+        params.set_n_threads(4);
+        println!("Using 4 threads for transcription");
 
         // Set language if provided
         if let Some(lang) = language {
@@ -152,9 +297,28 @@ impl WhisperTranscriber {
         let mut state = self.context.create_state()
             .map_err(|e| format!("Failed to create state: {}", e))?;
 
+        println!("Starting audio processing...");
+        let start_time = std::time::Instant::now();
+
         // Process the audio
         state.full(params, &audio_data[..])
             .map_err(|e| format!("Failed to process audio: {}", e))?;
+
+        let transcription_duration = start_time.elapsed();
+        println!("Audio processed in {:.2?}", transcription_duration);
+
+        // Check GPU memory usage after transcription
+        match Command::new("nvidia-smi")
+            .args(["--query-gpu=memory.used,memory.total,utilization.gpu", "--format=csv"])
+            .output() {
+            Ok(output) => {
+                if output.status.success() {
+                    println!("GPU status after transcription:");
+                    println!("  {}", String::from_utf8_lossy(&output.stdout));
+                }
+            },
+            Err(_) => {}
+        }
 
         // Extract the transcript
         let num_segments = state.full_n_segments()
