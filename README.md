@@ -6,6 +6,7 @@ A simple application for recording voice input using the microphone.
 
 - Press F12 to start recording, release to save
 - Recordings are saved as WAV files with timestamps
+- Transcribes audio and inserts text at cursor position
 - Optional system tray icon support
 
 ## Building
@@ -28,7 +29,13 @@ This will build the application with the system tray icon support. Note that thi
 
 ## System Dependencies
 
-If you want to build with the system tray icon feature, you'll need to install the following dependencies:
+The application requires several system dependencies:
+
+1. GTK/ATK dependencies (only needed if you want to build with the system tray icon feature)
+2. ALSA libraries for audio recording
+3. libxdo for keyboard simulation (used to insert transcribed text at cursor position)
+
+Install the following packages for your distribution:
 
 ### Ubuntu/Debian/Pop!_OS
 
@@ -38,6 +45,7 @@ For Ubuntu/Debian/Pop!_OS 22.04 and newer:
 sudo apt-get install libgtk-3-dev libatk1.0-dev libcairo2-dev libayatana-appindicator3-dev
 sudo apt install -y libasound2-dev
 sudo apt install libclang-14-dev
+sudo apt install libxdo-dev
 ```
 
 For older Ubuntu/Debian versions (before 22.04):
@@ -45,6 +53,7 @@ For older Ubuntu/Debian versions (before 22.04):
 ```bash
 sudo apt-get install libgtk-3-dev libatk1.0-dev libcairo2-dev libappindicator3-dev
 sudo apt install -y libasound2-dev
+sudo apt install libxdo-dev
 ```
 
 ### Fedora
@@ -52,6 +61,7 @@ sudo apt install -y libasound2-dev
 ```bash
 sudo dnf install gtk3-devel atk-devel cairo-devel libappindicator-gtk3-devel
 sudo dnf install -y alsa-lib-devel
+sudo dnf install libxdo-devel
 ```
 
 ### Arch Linux
@@ -59,6 +69,7 @@ sudo dnf install -y alsa-lib-devel
 ```bash
 sudo pacman -S gtk3 atk cairo libappindicator-gtk3
 sudo pacman -S alsa-lib
+sudo pacman -S xdotool
 ```
 
 ## Running

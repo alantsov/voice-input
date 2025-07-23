@@ -8,6 +8,9 @@ use sys_locale::get_locale;
 use rdev::{listen, Event, EventType, Key};
 use std::sync::mpsc::{channel, Sender, Receiver};
 use lazy_static::lazy_static;
+// Note: The enigo crate requires the libxdo-dev package on Linux
+// Install it with: sudo apt-get install libxdo-dev
+use enigo::{Enigo, KeyboardControllable};
 
 #[cfg(feature = "tray-icon")]
 use gtk::prelude::*;
@@ -45,6 +48,26 @@ fn handle_keyboard_event(event: Event) {
             }
         },
         _ => {}
+    }
+}
+
+// Function to simulate typing text at the current cursor position
+fn simulate_typing(text: &str) {
+    println!("Simulating typing: {}", text);
+
+    // Add a small delay to ensure the application is ready
+    thread::sleep(Duration::from_millis(500));
+
+    // Create a new Enigo instance
+    let mut enigo = Enigo::new();
+
+    // Type the text character by character
+    for c in text.chars() {
+        // Type the character
+        enigo.key_sequence(&c.to_string());
+
+        // Add a small delay between keystrokes
+        thread::sleep(Duration::from_millis(5));
     }
 }
 
@@ -150,7 +173,7 @@ fn detect_keyboard_layout() -> Result<String, String> {
 
 fn main() {
     println!("Voice Input Application");
-    println!("Press F12 to start recording, release to save");
+    println!("Press F12 to start recording, release to save and insert transcript at cursor position");
 
     // Initialize the system tray icon if the feature is enabled
     if let Err(e) = tray_icon::init_tray_icon() {
@@ -263,7 +286,7 @@ fn main() {
                 },
                 KeyboardEvent::F12Released => {
                     if f12_pressed {
-                        println!("F12 released - Recording stopped");
+                        println!("F12 released - Recording stopped, transcribing and inserting at cursor position");
                         f12_pressed = false;
 
                         // Stop recording
@@ -311,6 +334,10 @@ fn main() {
                                         println!("Transcription successful");
                                         println!("Transcript preview: {}", 
                                                  transcript.lines().take(2).collect::<Vec<_>>().join(" "));
+
+                                        // Insert the transcript at the current cursor position
+                                        simulate_typing(&transcript);
+                                        println!("Transcript inserted at cursor position");
                                     },
                                     Err(e) => {
                                         eprintln!("Failed to transcribe audio: {}", e);

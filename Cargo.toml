@@ -10,6 +10,7 @@ tray-icon = ["gtk", "libappindicator"]
 device_query = "1.1.3"
 chrono = "0.4.31"
 rdev = "0.5.1"
+enigo = "0.1.2"
 cpal = "0.15.2"
 hound = "3.5.1"
 gtk = { version = "0.18.2", optional = true }
