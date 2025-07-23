@@ -113,24 +113,9 @@ fn main() {
         }
     }
 
-    // Initialize both transcribers
-    let english_transcriber = match WhisperTranscriber::new(english_model) {
-        Ok(t) => Some(t),
-        Err(e) => {
-            eprintln!("Failed to initialize English WhisperTranscriber: {}", e);
-            eprintln!("English transcription will be disabled");
-            None
-        }
-    };
-
-    let multilingual_transcriber = match WhisperTranscriber::new(multilingual_model) {
-        Ok(t) => Some(t),
-        Err(e) => {
-            eprintln!("Failed to initialize Multilingual WhisperTranscriber: {}", e);
-            eprintln!("Multilingual transcription will be disabled");
-            None
-        }
-    };
+    // We'll initialize the transcribers on keydown instead of at startup
+    let english_transcriber = Arc::new(Mutex::new(None));
+    let multilingual_transcriber = Arc::new(Mutex::new(None));
 
     // Buffer to store recorded samples
     let recorded_samples = Arc::new(Mutex::new(Vec::new()));
@@ -180,8 +165,39 @@ fn main() {
 
                         // Store the language code for later use
                         CURRENT_LANGUAGE.with(|lang| {
-                            *lang.borrow_mut() = language_code;
+                            *lang.borrow_mut() = language_code.clone();
                         });
+
+                        // Initialize Whisper on keydown
+                        let is_english = language_code.starts_with("en");
+
+                        if is_english {
+                            // Initialize English transcriber if not already initialized
+                            let mut english_guard = english_transcriber.lock().unwrap();
+                            if english_guard.is_none() {
+                                println!("Initializing English transcriber on keydown");
+                                match WhisperTranscriber::new(english_model) {
+                                    Ok(t) => *english_guard = Some(t),
+                                    Err(e) => {
+                                        eprintln!("Failed to initialize English WhisperTranscriber: {}", e);
+                                        eprintln!("English transcription will be disabled");
+                                    }
+                                }
+                            }
+                        } else {
+                            // Initialize multilingual transcriber if not already initialized
+                            let mut multilingual_guard = multilingual_transcriber.lock().unwrap();
+                            if multilingual_guard.is_none() {
+                                println!("Initializing multilingual transcriber on keydown");
+                                match WhisperTranscriber::new(multilingual_model) {
+                                    Ok(t) => *multilingual_guard = Some(t),
+                                    Err(e) => {
+                                        eprintln!("Failed to initialize Multilingual WhisperTranscriber: {}", e);
+                                        eprintln!("Multilingual transcription will be disabled");
+                                    }
+                                }
+                            }
+                        }
 
                         // Clear previous recording and start new one
                         {
@@ -251,7 +267,8 @@ fn main() {
 
                             if is_english {
                                 // Use English transcriber
-                                if let Some(ref t) = english_transcriber {
+                                let english_guard = english_transcriber.lock().unwrap();
+                                if let Some(ref t) = *english_guard {
                                     println!("Using English transcriber");
                                     match t.transcribe_audio(&filename, Some(&current_language)) {
                                         Ok(transcript) => {
@@ -272,7 +289,8 @@ fn main() {
                                 }
                             } else {
                                 // Use multilingual transcriber
-                                if let Some(ref t) = multilingual_transcriber {
+                                let multilingual_guard = multilingual_transcriber.lock().unwrap();
+                                if let Some(ref t) = *multilingual_guard {
                                     println!("Using multilingual transcriber");
                                     match t.transcribe_audio(&filename, Some(&current_language)) {
                                         Ok(transcript) => {
