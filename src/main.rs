@@ -5,6 +5,9 @@ use device_query::{DeviceQuery, DeviceState, Keycode};
 use chrono::Local;
 use hound::{WavSpec, WavWriter};
 use sys_locale::get_locale;
+use rdev::{listen, Event, EventType, Key};
+use std::sync::mpsc::{channel, Sender, Receiver};
+use lazy_static::lazy_static;
 
 #[cfg(feature = "tray-icon")]
 use gtk::prelude::*;
@@ -16,6 +19,35 @@ use audio_stream::AudioStream;
 use whisper::WhisperTranscriber;
 
 /// Detect the current keyboard layout and return its language code
+// Define a type for keyboard events we're interested in
+enum KeyboardEvent {
+    F12Pressed,
+    F12Released,
+}
+
+// Global channel for keyboard events
+lazy_static! {
+    static ref KEYBOARD_EVENT_SENDER: Mutex<Option<Sender<KeyboardEvent>>> = Mutex::new(None);
+}
+
+// Function to handle keyboard events globally
+fn handle_keyboard_event(event: Event) {
+    // We're only interested in F12 key events
+    match event.event_type {
+        EventType::KeyPress(Key::F12) => {
+            if let Some(sender) = &*KEYBOARD_EVENT_SENDER.lock().unwrap() {
+                let _ = sender.send(KeyboardEvent::F12Pressed);
+            }
+        },
+        EventType::KeyRelease(Key::F12) => {
+            if let Some(sender) = &*KEYBOARD_EVENT_SENDER.lock().unwrap() {
+                let _ = sender.send(KeyboardEvent::F12Released);
+            }
+        },
+        _ => {}
+    }
+}
+
 fn detect_keyboard_layout() -> Result<String, String> {
     // This is a simplified implementation that uses the system locale as a fallback
     // In a real implementation, you would use the input-linux crate to detect the keyboard layout
@@ -177,10 +209,6 @@ fn main() {
         }
     };
 
-    // Initialize device state for keyboard monitoring
-    let device_state = DeviceState::new();
-    let mut f12_pressed = false;
-
     // Buffer to store recorded samples
     let recorded_samples = Arc::new(Mutex::new(Vec::new()));
     let recording = Arc::new(Mutex::new(false));
@@ -189,93 +217,111 @@ fn main() {
     let mut stream = AudioStream::new(recorded_samples.clone(), recording.clone())
         .expect("Failed to create audio stream");
 
-    println!("Waiting for F12 key...");
+    // Create a channel for keyboard events
+    let (sender, receiver) = channel::<KeyboardEvent>();
 
-    // Main loop to monitor keyboard events
-    loop {
-        let keys = device_state.get_keys();
-        let is_f12_pressed = keys.contains(&Keycode::F12);
+    // Store the sender in the global static
+    *KEYBOARD_EVENT_SENDER.lock().unwrap() = Some(sender);
 
-        // F12 key was just pressed
-        if is_f12_pressed && !f12_pressed {
-            println!("F12 pressed - Recording started");
-            f12_pressed = true;
-
-            // Clear previous recording and start new one
-            {
-                let mut samples = recorded_samples.lock().unwrap();
-                samples.clear();
-                *recording.lock().unwrap() = true;
-            }
-
-            // Resume the stream to start recording
-            stream.play().expect("Failed to start the stream");
-
-            // Generate some dummy data for demonstration
-            let mut samples = recorded_samples.lock().unwrap();
-            for i in 0..1000 {
-                samples.push(0.1 * (i as f32 % 10.0));
-            }
+    // Start listening for global keyboard events in a separate thread
+    let _keyboard_thread = thread::spawn(move || {
+        if let Err(e) = listen(handle_keyboard_event) {
+            eprintln!("Failed to listen for keyboard events: {:?}", e);
         }
+    });
 
-        // F12 key was just released
-        if !is_f12_pressed && f12_pressed {
-            println!("F12 released - Recording stopped");
-            f12_pressed = false;
+    println!("Waiting for F12 key (works even when app is not in focus)...");
 
-            // Stop recording
-            {
-                *recording.lock().unwrap() = false;
-            }
+    let mut f12_pressed = false;
 
-            // Pause the stream
-            stream.pause().expect("Failed to pause the stream");
+    // Main loop to process events
+    loop {
+        // Check for keyboard events
+        if let Ok(event) = receiver.try_recv() {
+            match event {
+                KeyboardEvent::F12Pressed => {
+                    if !f12_pressed {
+                        println!("F12 pressed - Recording started");
+                        f12_pressed = true;
 
-            // Save the recorded audio
-            let timestamp = Local::now().format("%Y%m%d_%H%M%S").to_string();
-            let filename = format!("voice_{}.wav", timestamp);
+                        // Clear previous recording and start new one
+                        {
+                            let mut samples = recorded_samples.lock().unwrap();
+                            samples.clear();
+                            *recording.lock().unwrap() = true;
+                        }
 
-            // Get the recorded samples
-            let samples = recorded_samples.lock().unwrap().clone();
+                        // Resume the stream to start recording
+                        stream.play().expect("Failed to start the stream");
 
-            if !samples.is_empty() {
-                println!("Saving recording to {}", filename);
+                        // Generate some dummy data for demonstration
+                        let mut samples = recorded_samples.lock().unwrap();
+                        for i in 0..1000 {
+                            samples.push(0.1 * (i as f32 % 10.0));
+                        }
+                    }
+                },
+                KeyboardEvent::F12Released => {
+                    if f12_pressed {
+                        println!("F12 released - Recording stopped");
+                        f12_pressed = false;
 
-                // Create a WAV file
-                let spec = WavSpec {
-                    channels: stream.get_channels(),
-                    sample_rate: stream.get_sample_rate(),
-                    bits_per_sample: 32,
-                    sample_format: hound::SampleFormat::Float,
-                };
+                        // Stop recording
+                        {
+                            *recording.lock().unwrap() = false;
+                        }
 
-                let mut writer = WavWriter::create(&filename, spec)
-                    .expect("Failed to create WAV file");
+                        // Pause the stream
+                        stream.pause().expect("Failed to pause the stream");
 
-                // Write the samples to the WAV file
-                for &sample in &samples {
-                    writer.write_sample(sample).expect("Failed to write sample");
-                }
+                        // Save the recorded audio
+                        let timestamp = Local::now().format("%Y%m%d_%H%M%S").to_string();
+                        let filename = format!("voice_{}.wav", timestamp);
 
-                writer.finalize().expect("Failed to finalize WAV file");
-                println!("Recording saved successfully to {}", filename);
+                        // Get the recorded samples
+                        let samples = recorded_samples.lock().unwrap().clone();
 
-                // Transcribe the audio file if transcriber is available
-                if let Some(ref t) = transcriber {
-                    // Pass the language code to the transcribe_audio method
-                    match t.transcribe_audio(&filename, Some(&language_code)) {
-                        Ok(transcript) => {
-                            println!("Transcription successful");
-                            println!("Transcript preview: {}", 
-                                     transcript.lines().take(2).collect::<Vec<_>>().join(" "));
-                        },
-                        Err(e) => {
-                            eprintln!("Failed to transcribe audio: {}", e);
+                        if !samples.is_empty() {
+                            println!("Saving recording to {}", filename);
+
+                            // Create a WAV file
+                            let spec = WavSpec {
+                                channels: stream.get_channels(),
+                                sample_rate: stream.get_sample_rate(),
+                                bits_per_sample: 32,
+                                sample_format: hound::SampleFormat::Float,
+                            };
+
+                            let mut writer = WavWriter::create(&filename, spec)
+                                .expect("Failed to create WAV file");
+
+                            // Write the samples to the WAV file
+                            for &sample in &samples {
+                                writer.write_sample(sample).expect("Failed to write sample");
+                            }
+
+                            writer.finalize().expect("Failed to finalize WAV file");
+                            println!("Recording saved successfully to {}", filename);
+
+                            // Transcribe the audio file if transcriber is available
+                            if let Some(ref t) = transcriber {
+                                // Pass the language code to the transcribe_audio method
+                                match t.transcribe_audio(&filename, Some(&language_code)) {
+                                    Ok(transcript) => {
+                                        println!("Transcription successful");
+                                        println!("Transcript preview: {}", 
+                                                 transcript.lines().take(2).collect::<Vec<_>>().join(" "));
+                                    },
+                                    Err(e) => {
+                                        eprintln!("Failed to transcribe audio: {}", e);
+                                    }
+                                }
+                            }
+                        } else {
+                            println!("No audio recorded");
                         }
                     }
                 }
-            } else {
-                println!("No audio recorded");
             }
         }
 
