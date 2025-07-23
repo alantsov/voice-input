@@ -300,12 +300,12 @@ impl WhisperTranscriber {
         println!("Starting audio processing...");
 
         // Check if CUDA is available and being used
-        #[cfg(feature = "cuda_available")]
+        #[cfg(feature = "cuda")]
         {
             println!("CUDA GPU acceleration is enabled and will be used");
         }
 
-        #[cfg(not(feature = "cuda_available"))]
+        #[cfg(not(feature = "cuda"))]
         {
             println!("CUDA GPU acceleration is not available, using CPU only");
         }

@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use chrono::Local;
 use hound::{WavSpec, WavWriter};
 use rdev::{listen, Event, EventType, Key};
@@ -39,6 +39,7 @@ lazy_static! {
     static ref KEYBOARD_EVENT_SENDER: Mutex<Option<Sender<KeyboardEvent>>> = Mutex::new(None);
     static ref SELECTED_MODEL: Mutex<String> = Mutex::new(String::from("base"));
     static ref MODEL_LOADING: Mutex<bool> = Mutex::new(false);
+    static ref KEY_RELEASE_TIME: Mutex<Option<Instant>> = Mutex::new(None);
 }
 
 // Function to handle keyboard events globally
@@ -76,6 +77,12 @@ fn simulate_typing(text: &str) {
 
         // Add a small delay between keystrokes
         thread::sleep(Duration::from_millis(5));
+    }
+
+    // Calculate and log the time between key release and end of simulated typing
+    if let Some(start_time) = *KEY_RELEASE_TIME.lock().unwrap() {
+        let elapsed = start_time.elapsed();
+        println!("Time between key release and end of simulated typing: {:.2} seconds", elapsed.as_secs_f64());
     }
 }
 
@@ -268,6 +275,9 @@ fn main() {
                     if f12_pressed {
                         println!("F12 released - Recording stopped, transcribing and inserting at cursor position");
                         f12_pressed = false;
+
+                        // Record the time when F12 is released
+                        *KEY_RELEASE_TIME.lock().unwrap() = Some(Instant::now());
 
                         // Stop recording
                         {
