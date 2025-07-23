@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{Write, copy};
+use std::io::{Write, copy, Read};
 use std::path::Path;
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext};
 use reqwest::blocking::Client;
@@ -33,17 +33,52 @@ impl WhisperTranscriber {
 
         println!("Downloading model from: {}", url);
 
-        // Create a client
-        let client = Client::new();
+        // Create a client with increased timeout
+        let client = Client::builder()
+            .timeout(std::time::Duration::from_secs(300)) // 5 minute timeout
+            .build()
+            .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
 
+        // Maximum number of retries
+        let max_retries = 3;
+        let mut retry_count = 0;
+        let mut last_error = String::new();
+
+        // Retry loop
+        while retry_count < max_retries {
+            match Self::download_with_retry(&client, &url, model_name, retry_count) {
+                Ok(_) => {
+                    println!("Model downloaded successfully to: {}", model_name);
+                    return Ok(());
+                },
+                Err(e) => {
+                    last_error = e;
+                    retry_count += 1;
+                    if retry_count < max_retries {
+                        let wait_time = std::time::Duration::from_secs(2u64.pow(retry_count as u32));
+                        println!("Download attempt {} failed. Retrying in {} seconds...", 
+                                 retry_count, wait_time.as_secs());
+                        std::thread::sleep(wait_time);
+                    }
+                }
+            }
+        }
+
+        Err(format!("Failed to download model {} after {} attempts: {}", 
+                   model_name, max_retries, last_error))
+    }
+
+    /// Helper function to download with retry logic
+    fn download_with_retry(client: &Client, url: &str, model_name: &str, attempt: usize) -> Result<(), String> {
         // Make a request to get the file
-        let response = client.get(&url)
+        let mut response = client.get(url)
             .send()
-            .map_err(|e| format!("Failed to download model: {}", e))?;
+            .map_err(|e| format!("Failed to download model (attempt {}): {}", attempt + 1, e))?;
 
         // Check if the request was successful
         if !response.status().is_success() {
-            return Err(format!("Failed to download model: HTTP status {}", response.status()));
+            return Err(format!("Failed to download model (attempt {}): HTTP status {}", 
+                              attempt + 1, response.status()));
         }
 
         // Get the content length for progress reporting
@@ -60,17 +95,26 @@ impl WhisperTranscriber {
         let mut file = File::create(model_name)
             .map_err(|e| format!("Failed to create model file: {}", e))?;
 
-        // Create a reader that updates the progress bar
-        let mut reader = response.bytes()
-            .map_err(|e| format!("Failed to read response: {}", e))?;
+        // Use a buffer to read the response in chunks
+        let mut buffer = [0; 8192]; // 8KB buffer
+        let mut downloaded: u64 = 0;
 
-        // Write the file
-        file.write_all(&reader)
-            .map_err(|e| format!("Failed to write model file: {}", e))?;
+        // Read and write in chunks
+        loop {
+            let bytes_read = match response.read(&mut buffer) {
+                Ok(0) => break, // End of file
+                Ok(n) => n,
+                Err(e) => return Err(format!("Failed to read from response: {}", e)),
+            };
+
+            file.write_all(&buffer[..bytes_read])
+                .map_err(|e| format!("Failed to write to file: {}", e))?;
+
+            downloaded += bytes_read as u64;
+            pb.set_position(downloaded);
+        }
 
         pb.finish_with_message("Download complete");
-
-        println!("Model downloaded successfully to: {}", model_name);
         Ok(())
     }
 

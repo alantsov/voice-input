@@ -2338,6 +2338,7 @@ dependencies = [
  "cpal",
  "device_query",
  "enigo",
+ "glib",
  "gtk",
  "hound",
  "indicatif",
