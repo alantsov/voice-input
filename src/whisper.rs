@@ -26,7 +26,7 @@ impl WhisperTranscriber {
     }
 
     /// Download the Whisper model from the official repository
-    fn download_model(model_name: &str) -> Result<(), String> {
+    pub fn download_model(model_name: &str) -> Result<(), String> {
         // Base URL for Whisper models
         let base_url = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/";
         let url = format!("{}{}", base_url, model_name);
@@ -75,7 +75,8 @@ impl WhisperTranscriber {
     }
 
     /// Transcribe audio from a WAV file and save the transcript to a text file
-    pub fn transcribe_audio(&self, audio_path: &str) -> Result<String, String> {
+    /// If language is provided, it will be used for transcription
+    pub fn transcribe_audio(&self, audio_path: &str, language: Option<&str>) -> Result<String, String> {
         // Load audio samples from WAV file
         let audio_data = self.load_audio_from_wav(audio_path)?;
 
@@ -87,6 +88,21 @@ impl WhisperTranscriber {
         params.set_print_progress(false);
         params.set_print_realtime(false);
         params.set_print_timestamps(true);
+
+        // Set language if provided
+        if let Some(lang) = language {
+            // Extract the language code (first 2 characters of the locale)
+            let lang_code = if lang.len() >= 2 {
+                &lang[0..2]
+            } else {
+                lang
+            };
+
+            // Set the language for transcription
+            // The set_language method expects Option<&str>
+            params.set_language(Some(lang_code));
+            println!("Using language '{}' for transcription", lang_code);
+        }
 
         // Create a state for the context
         let mut state = self.context.create_state()
