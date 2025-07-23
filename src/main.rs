@@ -184,13 +184,13 @@ fn main() {
                             match selected_model.as_str() {
                                 "base" => english_model.to_string(),
                                 "small" | "medium" => format!("ggml-{}.en.bin", selected_model),
-                                "large" => format!("ggml-{}-v3-turbo.bin", selected_model),
+                                "large" => format!("ggml-{}-v2.bin", selected_model),
                                 _ => english_model.to_string()
                             }
                         } else {
                             match selected_model.as_str() {
                                 "base" => multilingual_model.to_string(),
-                                "small" | "medium" | "large" => format!("ggml-{}-v3-turbo.bin", selected_model),
+                                "small" | "medium" | "large" => format!("ggml-{}-v2.bin", selected_model),
                                 _ => multilingual_model.to_string()
                             }
                         };

@@ -164,8 +164,8 @@ fn get_both_model_filenames(model: &str) -> (String, String) {
         "large" => {
             // For large: only multilingual model
             (
-                format!("ggml-{}-v3-turbo.bin", model), // No English-specific version for large
-                format!("ggml-{}-v3-turbo.bin", model)
+                format!("ggml-{}-v2.bin", model), // No English-specific version for large
+                format!("ggml-{}-v2.bin", model)
             )
         },
         _ => {
