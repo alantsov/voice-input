@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::io::{Write, Read};
 use std::path::Path;
-use whisper_rs::{FullParams, SamplingStrategy, WhisperContext};
+use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 use reqwest::blocking::Client;
 use indicatif::{ProgressBar, ProgressStyle};
 use std::process::Command;
@@ -118,7 +118,8 @@ impl WhisperTranscriber {
     fn init_with_cuda(model_path: &str) -> Result<WhisperContext, String> {
         // The whisper-rs crate should automatically use CUDA when the feature is enabled
         // and the system supports it, but we need to ensure the model is loaded correctly
-        let context = WhisperContext::new(model_path)
+        let temp_params = WhisperContextParameters::default();
+        let context = WhisperContext::new_with_params(model_path, temp_params)
             .map_err(|e| format!("Failed to create whisper context with CUDA: {}", e))?;
 
         // Check GPU memory usage after model loading to verify CUDA is being used
@@ -180,7 +181,8 @@ impl WhisperTranscriber {
         }
 
         // CPU fallback or default path when CUDA is not enabled
-        let context = WhisperContext::new(model_path)
+        let temp_params = WhisperContextParameters::default();
+        let context = WhisperContext::new_with_params(model_path, temp_params)
             .map_err(|e| format!("Failed to create whisper context: {}", e))?;
 
         let load_duration = start_time.elapsed();
