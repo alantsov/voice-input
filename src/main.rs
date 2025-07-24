@@ -95,7 +95,7 @@ fn simulate_typing(text: &str) {
         // Display breakdown of time spent in each stage
         println!("Time breakdown:");
 
-        let mut timing_info = TIMING_INFO.lock().unwrap();
+        let timing_info = TIMING_INFO.lock().unwrap();
 
         // Print each stage's timing
         if let Some(time) = timing_info.get("stop_recording") {
@@ -376,8 +376,8 @@ fn main() {
                                 if let Some(ref t) = *english_guard {
                                     println!("Using English transcriber");
 
-                                    // Start timing for transcription
-                                    let transcribe_start = Instant::now();
+                                    // Start timing for transcription (handled by transcribe_audio)
+                                    let _transcribe_start = Instant::now();
 
                                     match t.transcribe_audio(&filename, Some(&current_language)) {
                                         Ok((transcript, conversion_time, transcription_time)) => {
@@ -406,8 +406,8 @@ fn main() {
                                 if let Some(ref t) = *multilingual_guard {
                                     println!("Using multilingual transcriber");
 
-                                    // Start timing for transcription
-                                    let transcribe_start = Instant::now();
+                                    // Start timing for transcription (handled by transcribe_audio)
+                                    let _transcribe_start = Instant::now();
 
                                     match t.transcribe_audio(&filename, Some(&current_language)) {
                                         Ok((transcript, conversion_time, transcription_time)) => {
