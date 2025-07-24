@@ -266,16 +266,17 @@ impl WhisperTranscriber {
         println!("Loaded audio data: {} samples", audio_data.len());
 
         // Create parameters for transcription
-        let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
+        let mut params = FullParams::new(SamplingStrategy::BeamSearch {beam_size: 5, patience: 1.2});
 
         // Set parameters as needed
         params.set_print_special(false);
         params.set_print_progress(false);
         params.set_print_realtime(false);
         params.set_print_timestamps(true);
+        params.set_temperature(0.0);
 
         // Set number of threads to use (4 is a common default)
-        params.set_n_threads(4);
+        params.set_n_threads(8);
         println!("Using 4 threads for transcription");
 
         // Set language if provided

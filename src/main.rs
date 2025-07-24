@@ -182,15 +182,14 @@ fn main() {
                         // Determine the model file based on the selected model and language
                         let model_file = if is_english {
                             match selected_model.as_str() {
-                                "base" => english_model.to_string(),
-                                "small" | "medium" => format!("ggml-{}.en.bin", selected_model),
+                                "base" | "small" | "medium" => format!("ggml-{}.en.bin", selected_model),
                                 "large" => format!("ggml-{}-v2.bin", selected_model),
                                 _ => english_model.to_string()
                             }
                         } else {
                             match selected_model.as_str() {
-                                "base" => multilingual_model.to_string(),
-                                "small" | "medium" | "large" => format!("ggml-{}-v2.bin", selected_model),
+                                "base" | "small" | "medium" => format!("ggml-{}.bin", selected_model),
+                                "large" => format!("ggml-{}-v2.bin", selected_model),
                                 _ => multilingual_model.to_string()
                             }
                         };
