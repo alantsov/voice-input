@@ -342,8 +342,8 @@ impl WhisperTranscriber {
         for i in 0..num_segments {
             let segment = state.full_get_segment_text(i)
                 .map_err(|e| format!("Failed to get segment {}: {}", i, e))?;
-
-            transcript.push_str(&segment);
+            let short_segment = &segment.strip_prefix(" ");
+            transcript.push_str(short_segment.unwrap_or(&segment));
             transcript.push('\n');
         }
 
