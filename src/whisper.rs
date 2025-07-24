@@ -37,6 +37,14 @@ impl WhisperTranscriber {
                         .output() {
                         println!("  {}", String::from_utf8_lossy(&mem_output.stdout));
                     }
+
+                    // Check CUDA compute capability
+                    if let Ok(compute_output) = Command::new("nvidia-smi")
+                        .args(["--query-gpu=compute_cap", "--format=csv"])
+                        .output() {
+                        println!("CUDA Compute Capability:");
+                        println!("  {}", String::from_utf8_lossy(&compute_output.stdout));
+                    }
                 } else {
                     println!("nvidia-smi command failed. GPU might not be available or drivers not installed.");
                 }
@@ -105,6 +113,30 @@ impl WhisperTranscriber {
         }
     }
 
+    /// Initialize WhisperContext with CUDA support
+    #[cfg(feature = "cuda")]
+    fn init_with_cuda(model_path: &str) -> Result<WhisperContext, String> {
+        // The whisper-rs crate should automatically use CUDA when the feature is enabled
+        // and the system supports it, but we need to ensure the model is loaded correctly
+        let context = WhisperContext::new(model_path)
+            .map_err(|e| format!("Failed to create whisper context with CUDA: {}", e))?;
+
+        // Check GPU memory usage after model loading to verify CUDA is being used
+        match Command::new("nvidia-smi")
+            .args(["--query-gpu=memory.used,memory.total", "--format=csv"])
+            .output() {
+            Ok(output) => {
+                if output.status.success() {
+                    println!("GPU memory usage after model loading with CUDA:");
+                    println!("  {}", String::from_utf8_lossy(&output.stdout));
+                }
+            },
+            Err(_) => {}
+        }
+
+        Ok(context)
+    }
+
     /// Create a new WhisperTranscriber with the specified model path
     /// If the model doesn't exist, it will be downloaded automatically
     pub fn new(model_path: &str) -> Result<Self, String> {
@@ -120,11 +152,39 @@ impl WhisperTranscriber {
         println!("Loading whisper model: {}", model_path);
         let start_time = std::time::Instant::now();
 
+        // Create context with CUDA support when available
+        #[cfg(feature = "cuda")]
+        {
+            println!("Attempting to initialize model with CUDA support");
+            // Try to initialize with CUDA first
+            match Self::init_with_cuda(model_path) {
+                Ok(context) => {
+                    let load_duration = start_time.elapsed();
+                    println!("Model loaded with CUDA in {:.2?}", load_duration);
+
+                    // Print model information
+                    println!("Model information:");
+                    println!("  Model type: {}", context.model_type_readable().unwrap_or_else(|_| "Unknown".to_string()));
+                    println!("  Is multilingual: {}", context.is_multilingual());
+                    println!("  Vocabulary size: {}", context.n_vocab());
+                    println!("  Audio context size: {}", context.n_audio_ctx());
+                    println!("  Text context size: {}", context.n_text_ctx());
+
+                    return Ok(WhisperTranscriber { context });
+                },
+                Err(e) => {
+                    println!("Failed to initialize with CUDA: {}", e);
+                    println!("Falling back to CPU implementation");
+                }
+            }
+        }
+
+        // CPU fallback or default path when CUDA is not enabled
         let context = WhisperContext::new(model_path)
             .map_err(|e| format!("Failed to create whisper context: {}", e))?;
 
         let load_duration = start_time.elapsed();
-        println!("Model loaded in {:.2?}", load_duration);
+        println!("Model loaded (CPU) in {:.2?}", load_duration);
 
         // Print model information
         println!("Model information:");
@@ -140,7 +200,7 @@ impl WhisperTranscriber {
             .output() {
             Ok(output) => {
                 if output.status.success() {
-                    println!("GPU memory usage after model loading:");
+                    println!("GPU memory usage after model loading (CPU):");
                     println!("  {}", String::from_utf8_lossy(&output.stdout));
                 }
             },
@@ -283,9 +343,20 @@ impl WhisperTranscriber {
         params.set_print_timestamps(true);
         params.set_temperature(0.0);
 
-        // Set number of threads to use (4 is a common default)
-        params.set_n_threads(8);
-        println!("Using 4 threads for transcription");
+        // Set number of threads to use
+        #[cfg(feature = "cuda")]
+        {
+            // When using CUDA, we can use fewer CPU threads as the GPU does most of the work
+            // params.set_n_threads(4);
+            println!("Using default threads number for transcription with CUDA");
+        }
+
+        #[cfg(not(feature = "cuda"))]
+        {
+            // When not using CUDA, use more CPU threads
+            params.set_n_threads(8);
+            println!("Using 8 threads for transcription (CPU only)");
+        }
 
         // Set language if provided
         if let Some(lang) = language {
