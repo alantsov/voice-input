@@ -10,6 +10,7 @@ use lazy_static::lazy_static;
 // Install it with: sudo apt-get install libxdo-dev
 use enigo::{Enigo, KeyboardControllable};
 use std::cell::RefCell;
+use std::collections::HashMap;
 
 // Thread-local storage for the current language code
 thread_local! {
@@ -40,6 +41,7 @@ lazy_static! {
     static ref SELECTED_MODEL: Mutex<String> = Mutex::new(String::from("base"));
     static ref MODEL_LOADING: Mutex<bool> = Mutex::new(false);
     static ref KEY_RELEASE_TIME: Mutex<Option<Instant>> = Mutex::new(None);
+    static ref TIMING_INFO: Mutex<HashMap<String, Duration>> = Mutex::new(HashMap::new());
 }
 
 // Function to handle keyboard events globally
@@ -64,6 +66,9 @@ fn handle_keyboard_event(event: Event) {
 fn simulate_typing(text: &str) {
     println!("Simulating typing: {}", text);
 
+    // Start timing for typing simulation
+    let typing_start = Instant::now();
+
     // Add a small delay to ensure the application is ready
     thread::sleep(Duration::from_millis(500));
 
@@ -79,10 +84,39 @@ fn simulate_typing(text: &str) {
         thread::sleep(Duration::from_millis(5));
     }
 
+    // Record time for typing simulation
+    TIMING_INFO.lock().unwrap().insert("typing".to_string(), typing_start.elapsed());
+
     // Calculate and log the time between key release and end of simulated typing
     if let Some(start_time) = *KEY_RELEASE_TIME.lock().unwrap() {
         let elapsed = start_time.elapsed();
         println!("Time between key release and end of simulated typing: {:.2} seconds", elapsed.as_secs_f64());
+
+        // Display breakdown of time spent in each stage
+        println!("Time breakdown:");
+
+        let mut timing_info = TIMING_INFO.lock().unwrap();
+
+        // Print each stage's timing
+        if let Some(time) = timing_info.get("stop_recording") {
+            println!("  - Stopping recording: {:.2} seconds", time.as_secs_f64());
+        }
+
+        if let Some(time) = timing_info.get("save_wav") {
+            println!("  - Saving WAV file: {:.2} seconds", time.as_secs_f64());
+        }
+
+        if let Some(time) = timing_info.get("audio_conversion") {
+            println!("  - Converting audio (to mono and 16000Hz): {:.2} seconds", time.as_secs_f64());
+        }
+
+        if let Some(time) = timing_info.get("actual_transcription") {
+            println!("  - Actual transcribing: {:.2} seconds", time.as_secs_f64());
+        }
+
+        if let Some(time) = timing_info.get("typing") {
+            println!("  - Simulating typing: {:.2} seconds", time.as_secs_f64());
+        }
     }
 }
 
@@ -276,7 +310,11 @@ fn main() {
                         f12_pressed = false;
 
                         // Record the time when F12 is released
-                        *KEY_RELEASE_TIME.lock().unwrap() = Some(Instant::now());
+                        let start_time = Instant::now();
+                        *KEY_RELEASE_TIME.lock().unwrap() = Some(start_time);
+
+                        // Clear previous timing information
+                        TIMING_INFO.lock().unwrap().clear();
 
                         // Stop recording
                         {
@@ -285,6 +323,9 @@ fn main() {
 
                         // Pause the stream
                         stream.pause().expect("Failed to pause the stream");
+
+                        // Record time for stopping recording
+                        TIMING_INFO.lock().unwrap().insert("stop_recording".to_string(), start_time.elapsed());
 
                         // Save the recorded audio
                         let timestamp = Local::now().format("%Y%m%d_%H%M%S").to_string();
@@ -295,6 +336,9 @@ fn main() {
 
                         if !samples.is_empty() {
                             println!("Saving recording to {}", filename);
+
+                            // Start timing for saving WAV file
+                            let save_start = Instant::now();
 
                             // Create a WAV file
                             let spec = WavSpec {
@@ -313,6 +357,10 @@ fn main() {
                             }
 
                             writer.finalize().expect("Failed to finalize WAV file");
+
+                            // Record time for saving WAV file
+                            TIMING_INFO.lock().unwrap().insert("save_wav".to_string(), save_start.elapsed());
+
                             println!("Recording saved successfully to {}", filename);
 
                             // Get the current language code
@@ -327,8 +375,16 @@ fn main() {
                                 let english_guard = english_transcriber.lock().unwrap();
                                 if let Some(ref t) = *english_guard {
                                     println!("Using English transcriber");
+
+                                    // Start timing for transcription
+                                    let transcribe_start = Instant::now();
+
                                     match t.transcribe_audio(&filename, Some(&current_language)) {
-                                        Ok(transcript) => {
+                                        Ok((transcript, conversion_time, transcription_time)) => {
+                                            // Record times for audio conversion and actual transcription
+                                            TIMING_INFO.lock().unwrap().insert("audio_conversion".to_string(), conversion_time);
+                                            TIMING_INFO.lock().unwrap().insert("actual_transcription".to_string(), transcription_time);
+
                                             println!("Transcription successful");
                                             println!("Transcript preview: {}", 
                                                      transcript.lines().take(2).collect::<Vec<_>>().join(" "));
@@ -349,8 +405,16 @@ fn main() {
                                 let multilingual_guard = multilingual_transcriber.lock().unwrap();
                                 if let Some(ref t) = *multilingual_guard {
                                     println!("Using multilingual transcriber");
+
+                                    // Start timing for transcription
+                                    let transcribe_start = Instant::now();
+
                                     match t.transcribe_audio(&filename, Some(&current_language)) {
-                                        Ok(transcript) => {
+                                        Ok((transcript, conversion_time, transcription_time)) => {
+                                            // Record times for audio conversion and actual transcription
+                                            TIMING_INFO.lock().unwrap().insert("audio_conversion".to_string(), conversion_time);
+                                            TIMING_INFO.lock().unwrap().insert("actual_transcription".to_string(), transcription_time);
+
                                             println!("Transcription successful");
                                             println!("Transcript preview: {}", 
                                                      transcript.lines().take(2).collect::<Vec<_>>().join(" "));
