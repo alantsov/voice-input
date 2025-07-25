@@ -1,6 +1,5 @@
-use std::time::{Duration, Instant};
-use std::thread;
-use enigo::{Enigo, KeyboardControllable};
+use std::time::{ Instant};
+use enigo::{Enigo, Keyboard};
 use crate::{KEY_RELEASE_TIME, TIMING_INFO};
 
 // Function to simulate typing text at the current cursor position
@@ -11,19 +10,20 @@ pub fn simulate_typing(text: &str) {
     let typing_start = Instant::now();
 
     // Add a small delay to ensure the application is ready
-    thread::sleep(Duration::from_millis(500));
+    //thread::sleep(Duration::from_millis(5));
 
     // Create a new Enigo instance
-    let mut enigo = Enigo::new();
+    let enigo = Enigo::new(&enigo::Settings::default());
+    enigo.unwrap().fast_text(text).unwrap();
 
     // Type the text character by character
-    for c in text.chars() {
-        // Type the character
-        enigo.key_sequence(&c.to_string());
-
-        // Add a small delay between keystrokes
-        thread::sleep(Duration::from_millis(5));
-    }
+    // for c in text.chars() {
+    //     // Type the character
+    //     enigo.key_sequence(&c.to_string());
+    //
+    //     // Add a small delay between keystrokes
+    //     thread::sleep(Duration::from_millis(5));
+    // }
 
     // Record time for typing simulation
     TIMING_INFO.lock().unwrap().insert("typing".to_string(), typing_start.elapsed());
