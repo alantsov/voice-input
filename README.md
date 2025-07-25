@@ -117,7 +117,7 @@ This will create a .deb file in the parent directory.
 To install the generated Debian package:
 
 ```bash
-sudo dpkg -i ../voice-input_0.1.0-1_amd64.deb
+sudo dpkg -i ../voice-input_0.1.1-1_amd64.deb
 sudo apt-get install -f  # Install any missing dependencies
 ```
 

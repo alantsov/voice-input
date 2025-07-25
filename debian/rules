@@ -3,7 +3,14 @@
 	dh $@
 
 override_dh_auto_build:
-	cargo build --release --features tray-icon
+	# Always build with CUDA support, regardless of whether CUDA dependencies are found
+	echo "Building with CUDA support enabled"
+	# Create necessary directories for CUDA compilation
+	mkdir -p ggml/src/ggml-cuda/CMakeFiles/ggml-cuda.dir/template-instances
+	# Set environment variable to explicitly enable CUDA
+	export CARGO_FEATURE_CUDA=1
+	# Build with CUDA support
+	cargo build --release --features tray-icon --features cuda
 
 override_dh_auto_install:
 	mkdir -p debian/voice-input/usr/bin
@@ -12,3 +19,6 @@ override_dh_auto_install:
 override_dh_auto_clean:
 	cargo clean
 	dh_auto_clean
+
+override_dh_shlibdeps:
+	dh_shlibdeps --dpkg-shlibdeps-params=--ignore-missing-info
