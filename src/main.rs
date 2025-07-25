@@ -22,6 +22,7 @@ mod audio_stream;
 mod whisper;
 mod keyboard_layout;
 mod keyboard_simulator;
+mod clipboard_inserter;
 
 use audio_stream::AudioStream;
 use whisper::WhisperTranscriber;
@@ -332,7 +333,8 @@ fn main() {
                                                      transcript.lines().take(2).collect::<Vec<_>>().join(" "));
 
                                             // Insert the transcript at the current cursor position
-                                            keyboard_simulator::simulate_typing(&transcript);
+                                            //keyboard_simulator::simulate_typing(&transcript);
+                                            clipboard_inserter::insert_text(&transcript);
                                             println!("Transcript inserted at cursor position");
                                         },
                                         Err(e) => {
@@ -362,7 +364,8 @@ fn main() {
                                                      transcript.lines().take(2).collect::<Vec<_>>().join(" "));
 
                                             // Insert the transcript at the current cursor position
-                                            keyboard_simulator::simulate_typing(&transcript);
+                                            //keyboard_simulator::simulate_typing(&transcript);
+                                            clipboard_inserter::insert_text(&transcript);
                                             println!("Transcript inserted at cursor position");
                                         },
                                         Err(e) => {
