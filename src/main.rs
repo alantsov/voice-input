@@ -23,6 +23,7 @@ mod whisper;
 mod keyboard_layout;
 mod keyboard_simulator;
 mod clipboard_inserter;
+mod config;
 
 use audio_stream::AudioStream;
 use whisper::WhisperTranscriber;
@@ -39,7 +40,7 @@ enum KeyboardEvent {
 // Global channel for keyboard events and model selection
 lazy_static! {
     static ref KEYBOARD_EVENT_SENDER: Mutex<Option<Sender<KeyboardEvent>>> = Mutex::new(None);
-    static ref SELECTED_MODEL: Mutex<String> = Mutex::new(String::from("base"));
+    static ref SELECTED_MODEL: Mutex<String> = Mutex::new(config::get_selected_model());
     static ref MODEL_LOADING: Mutex<bool> = Mutex::new(false);
     static ref KEY_RELEASE_TIME: Mutex<Option<Instant>> = Mutex::new(None);
     static ref TIMING_INFO: Mutex<HashMap<String, Duration>> = Mutex::new(HashMap::new());

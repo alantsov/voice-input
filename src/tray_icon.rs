@@ -13,6 +13,8 @@ use std::thread;
 use crate::{SELECTED_MODEL, MODEL_LOADING};
 #[cfg(feature = "tray-icon")]
 use crate::whisper::WhisperTranscriber;
+#[cfg(feature = "tray-icon")]
+use crate::config;
 
 /// Initialize the system tray icon
 /// 
@@ -46,8 +48,8 @@ pub fn init_tray_icon() -> Result<(), String> {
     for model in &model_options {
         let item = CheckMenuItem::with_label(model);
 
-        // Set the base model as selected by default
-        if *model == "base" {
+        // Set the model as active if it matches the current selected model
+        if *model == current_model {
             item.set_active(true);
         }
 
@@ -64,6 +66,13 @@ pub fn init_tray_icon() -> Result<(), String> {
                 // Update the selected model
                 let mut selected_model = SELECTED_MODEL.lock().unwrap();
                 *selected_model = model_clone.clone();
+
+                // Save the selected model to the config file
+                if let Err(e) = config::save_selected_model(&model_clone) {
+                    eprintln!("Failed to save selected model to config file: {}", e);
+                } else {
+                    println!("Saved selected model '{}' to config file", model_clone);
+                }
 
                 // Update the model menu item label
                 model_menu_item_clone.set_label(&format!("Model: {}", model_clone));
