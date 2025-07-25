@@ -56,6 +56,10 @@ fn handle_keyboard_event(event: Event) {
         },
         EventType::KeyRelease(Key::ControlLeft) | EventType::KeyRelease(Key::ControlRight) => {
             *CTRL_PRESSED.lock().unwrap() = false;
+            // Send CtrlCapsLockReleased event when Ctrl is released
+            if let Some(sender) = &*KEYBOARD_EVENT_SENDER.lock().unwrap() {
+                let _ = sender.send(KeyboardEvent::CtrlCapsLockReleased);
+            }
         },
         EventType::KeyPress(Key::CapsLock) => {
             if *CTRL_PRESSED.lock().unwrap() {
@@ -65,10 +69,9 @@ fn handle_keyboard_event(event: Event) {
             }
         },
         EventType::KeyRelease(Key::CapsLock) => {
-            if *CTRL_PRESSED.lock().unwrap() {
-                if let Some(sender) = &*KEYBOARD_EVENT_SENDER.lock().unwrap() {
-                    let _ = sender.send(KeyboardEvent::CtrlCapsLockReleased);
-                }
+            // Send CtrlCapsLockReleased event when CAPSLOCK is released, regardless of Ctrl state
+            if let Some(sender) = &*KEYBOARD_EVENT_SENDER.lock().unwrap() {
+                let _ = sender.send(KeyboardEvent::CtrlCapsLockReleased);
             }
         },
         _ => {}
