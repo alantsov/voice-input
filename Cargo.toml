@@ -11,8 +11,8 @@ cuda = ["whisper-rs/cuda"]
 device_query = "1.1.3"
 chrono = "0.4.31"
 rdev = "0.5.1"
-enigo = "0.1.2"
-cpal = "0.15.2"
+enigo = "0.5.0"
+cpal = "0.16.0"
 hound = "3.5.1"
 gtk = { version = "0.18.2", optional = true }
 libappindicator = { version = "0.9.0", optional = true }
@@ -22,3 +22,5 @@ reqwest = { version = "0.11", features = ["blocking"] }
 indicatif = "0.17.7"
 sys-locale = "0.3.0"
 lazy_static = "1.4.0"
+tokio = "1.46.1"
+atspi = "0.27.0"
