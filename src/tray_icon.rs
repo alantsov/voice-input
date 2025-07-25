@@ -7,6 +7,8 @@ use libappindicator::{AppIndicator, AppIndicatorStatus};
 #[cfg(feature = "tray-icon")]
 use std::path::Path;
 #[cfg(feature = "tray-icon")]
+use std::process;
+#[cfg(feature = "tray-icon")]
 use std::thread;
 
 #[cfg(feature = "tray-icon")]
@@ -148,7 +150,9 @@ pub fn init_tray_icon() -> Result<(), String> {
 
     let quit = MenuItem::with_label("Quit");
     quit.connect_activate(|_| {
-        gtk::main_quit();
+        // Use std::process::exit instead of gtk::main_quit to ensure the application terminates
+        // regardless of how it's installed or run
+        std::process::exit(0);
     });
     menu.append(&quit);
 
