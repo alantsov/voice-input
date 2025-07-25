@@ -32,8 +32,8 @@ use keyboard_layout::KeyboardLayoutDetector;
 /// Detect the current keyboard layout and return its language code
 // Define a type for keyboard events we're interested in
 enum KeyboardEvent {
-    F12Pressed,
-    F12Released,
+    AltXPressed,
+    AltXReleased,
 }
 
 // Global channel for keyboard events and model selection
@@ -43,20 +43,31 @@ lazy_static! {
     static ref MODEL_LOADING: Mutex<bool> = Mutex::new(false);
     static ref KEY_RELEASE_TIME: Mutex<Option<Instant>> = Mutex::new(None);
     static ref TIMING_INFO: Mutex<HashMap<String, Duration>> = Mutex::new(HashMap::new());
+    static ref ALT_PRESSED: Mutex<bool> = Mutex::new(false);
 }
 
 // Function to handle keyboard events globally
 fn handle_keyboard_event(event: Event) {
-    // We're only interested in F12 key events
+    // We're interested in Alt+X key combination
     match event.event_type {
-        EventType::KeyPress(Key::F12) => {
-            if let Some(sender) = &*KEYBOARD_EVENT_SENDER.lock().unwrap() {
-                let _ = sender.send(KeyboardEvent::F12Pressed);
+        EventType::KeyPress(Key::Alt) => {
+            *ALT_PRESSED.lock().unwrap() = true;
+        },
+        EventType::KeyRelease(Key::Alt) => {
+            *ALT_PRESSED.lock().unwrap() = false;
+        },
+        EventType::KeyPress(Key::KeyX) => {
+            if *ALT_PRESSED.lock().unwrap() {
+                if let Some(sender) = &*KEYBOARD_EVENT_SENDER.lock().unwrap() {
+                    let _ = sender.send(KeyboardEvent::AltXPressed);
+                }
             }
         },
-        EventType::KeyRelease(Key::F12) => {
-            if let Some(sender) = &*KEYBOARD_EVENT_SENDER.lock().unwrap() {
-                let _ = sender.send(KeyboardEvent::F12Released);
+        EventType::KeyRelease(Key::KeyX) => {
+            if *ALT_PRESSED.lock().unwrap() {
+                if let Some(sender) = &*KEYBOARD_EVENT_SENDER.lock().unwrap() {
+                    let _ = sender.send(KeyboardEvent::AltXReleased);
+                }
             }
         },
         _ => {}
@@ -66,7 +77,7 @@ fn handle_keyboard_event(event: Event) {
 
 fn main() {
     println!("Voice Input Application");
-    println!("Press F12 to start recording, release to save and insert transcript at cursor position");
+    println!("Press Alt+X to start recording, release to save and insert transcript at cursor position");
 
     // Initialize the system tray icon if the feature is enabled
     if let Err(e) = tray_icon::init_tray_icon() {
@@ -120,7 +131,7 @@ fn main() {
         }
     });
 
-    println!("Waiting for F12 key (works even when app is not in focus)...");
+    println!("Waiting for Alt+X key combination (works even when app is not in focus)...");
 
     let mut f12_pressed = false;
 
@@ -129,9 +140,9 @@ fn main() {
         // Check for keyboard events
         if let Ok(event) = receiver.try_recv() {
             match event {
-                KeyboardEvent::F12Pressed => {
+                KeyboardEvent::AltXPressed => {
                     if !f12_pressed {
-                        println!("F12 pressed - Recording started");
+                        println!("Alt+X pressed - Recording started");
                         f12_pressed = true;
 
                         // Detect keyboard layout language on keydown
@@ -247,12 +258,12 @@ fn main() {
                         }
                     }
                 },
-                KeyboardEvent::F12Released => {
+                KeyboardEvent::AltXReleased => {
                     if f12_pressed {
-                        println!("F12 released - Recording stopped, transcribing and inserting at cursor position");
+                        println!("Alt+X released - Recording stopped, transcribing and inserting at cursor position");
                         f12_pressed = false;
 
-                        // Record the time when F12 is released
+                        // Record the time when Alt+X is released
                         let start_time = Instant::now();
                         *KEY_RELEASE_TIME.lock().unwrap() = Some(start_time);
 
