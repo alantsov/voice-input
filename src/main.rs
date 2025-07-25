@@ -282,20 +282,20 @@ fn main() {
                         // Record time for stopping recording
                         TIMING_INFO.lock().unwrap().insert("stop_recording".to_string(), start_time.elapsed());
 
-                        // Save the recorded audio
+                        // Create a temporary WAV file in memory for transcription
                         let timestamp = Local::now().format("%Y%m%d_%H%M%S").to_string();
-                        let filename = format!("voice_{}.wav", timestamp);
+                        let filename = format!("temp_voice_{}.wav", timestamp);
 
                         // Get the recorded samples
                         let samples = recorded_samples.lock().unwrap().clone();
 
                         if !samples.is_empty() {
-                            println!("Saving recording to {}", filename);
+                            println!("Processing recording for transcription");
 
-                            // Start timing for saving WAV file
+                            // Start timing for WAV file processing
                             let save_start = Instant::now();
 
-                            // Create a WAV file
+                            // Create a WAV file in memory for transcription
                             let spec = WavSpec {
                                 channels: stream.get_channels(),
                                 sample_rate: stream.get_sample_rate(),
@@ -304,19 +304,19 @@ fn main() {
                             };
 
                             let mut writer = WavWriter::create(&filename, spec)
-                                .expect("Failed to create WAV file");
+                                .expect("Failed to create temporary WAV file");
 
                             // Write the samples to the WAV file
                             for &sample in &samples {
                                 writer.write_sample(sample).expect("Failed to write sample");
                             }
 
-                            writer.finalize().expect("Failed to finalize WAV file");
+                            writer.finalize().expect("Failed to finalize temporary WAV file");
 
-                            // Record time for saving WAV file
-                            TIMING_INFO.lock().unwrap().insert("save_wav".to_string(), save_start.elapsed());
+                            // Record time for WAV file processing
+                            TIMING_INFO.lock().unwrap().insert("process_wav".to_string(), save_start.elapsed());
 
-                            println!("Recording saved successfully to {}", filename);
+                            println!("Recording processed successfully");
 
                             // Get the current language code
                             let current_language = CURRENT_LANGUAGE.with(|lang| lang.borrow().clone());
@@ -387,6 +387,13 @@ fn main() {
                                 } else {
                                     eprintln!("Multilingual transcriber is not available");
                                 }
+                            }
+
+                            // Delete the temporary WAV file
+                            if let Err(e) = std::fs::remove_file(&filename) {
+                                eprintln!("Warning: Failed to delete temporary file {}: {}", filename, e);
+                            } else {
+                                println!("Temporary file {} deleted", filename);
                             }
                         } else {
                             println!("No audio recorded");

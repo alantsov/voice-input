@@ -305,7 +305,7 @@ impl WhisperTranscriber {
         Ok(())
     }
 
-    /// Transcribe audio from a WAV file and save the transcript to a text file
+    /// Transcribe audio from a WAV file
     /// If language is provided, it will be used for transcription
     /// Returns the transcript and timing information for audio conversion and transcription
     pub fn transcribe_audio(&self, audio_path: &str, language: Option<&str>) -> Result<(String, std::time::Duration, std::time::Duration), String> {
@@ -430,12 +430,7 @@ impl WhisperTranscriber {
             transcript.push('\n');
         }
 
-        // Generate timestamp for the transcript file
-        let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
-        let transcript_filename = format!("transcript_{}.txt", timestamp);
-
-        // Save transcript to file
-        self.save_transcript(&transcript, &transcript_filename)?;
+        // No longer saving transcript to file
 
         Ok((transcript, conversion_duration, transcription_duration))
     }
@@ -520,15 +515,9 @@ impl WhisperTranscriber {
         Ok(resampled)
     }
 
-    /// Save transcript to a text file
-    fn save_transcript(&self, transcript: &str, filename: &str) -> Result<(), String> {
-        let mut file = File::create(filename)
-            .map_err(|e| format!("Failed to create transcript file: {}", e))?;
-
-        file.write_all(transcript.as_bytes())
-            .map_err(|e| format!("Failed to write transcript: {}", e))?;
-
-        println!("Transcript saved to {}", filename);
+    /// Save transcript to a text file (now a no-op as per requirements)
+    fn save_transcript(&self, _transcript: &str, filename: &str) -> Result<(), String> {
+        println!("Transcript would have been saved to {} (disabled)", filename);
         Ok(())
     }
 }
