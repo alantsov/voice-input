@@ -4,7 +4,7 @@ A simple application for recording voice input using the microphone.
 
 ## Features
 
-- Press Alt+X to start recording, release to save
+- Press Ctrl+CAPSLOCK to start recording, release to save
 - Recordings are saved as WAV files with timestamps
 - Transcribes audio and inserts text at cursor position
 - Uses GPU acceleration for faster transcription when available
@@ -90,4 +90,3 @@ cargo run --features tray-icon --features cuda
 ```bash
 cargo build --features tray-icon --features cuda
 ```
-
