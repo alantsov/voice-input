@@ -9,6 +9,7 @@ A simple application for recording voice input using the microphone.
 - Transcribes audio and inserts text at cursor position
 - Uses GPU acceleration for faster transcription when available
 - Optional system tray icon support
+- Single instance enforcement (prevents multiple instances from running simultaneously)
 
 ## Building
 
