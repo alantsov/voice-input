@@ -122,4 +122,4 @@ sudo dpkg -i ../voice-input_0.1.1-1_amd64.deb
 sudo apt-get install -f  # Install any missing dependencies
 ```
 
-After installation, you can launch the application from your application menu or by running `voice-input` in the terminal.
+After installation, you can launch the application from your application menu or by running `voice-input` in the terminal. The application will also start automatically when you log in to your system.
