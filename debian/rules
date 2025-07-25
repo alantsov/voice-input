@@ -1,0 +1,14 @@
+#!/usr/bin/make -f
+%:
+	dh $@
+
+override_dh_auto_build:
+	cargo build --release --features tray-icon
+
+override_dh_auto_install:
+	mkdir -p debian/voice-input/usr/bin
+	cp target/release/voice_input debian/voice-input/usr/bin/voice-input
+
+override_dh_auto_clean:
+	cargo clean
+	dh_auto_clean

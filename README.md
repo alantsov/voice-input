@@ -47,7 +47,10 @@ sudo apt-get install libgtk-3-dev libatk1.0-dev libcairo2-dev libayatana-appindi
 sudo apt install -y libasound2-dev
 sudo apt install libclang-14-dev
 sudo apt install libxdo-dev
+sudo apt-get install -y libxcb-shape0-dev libxcb-xfixes0-dev
 ```
+
+`sudo apt install debhelper cargo rustc libclang-dev`
 
 For older Ubuntu/Debian versions (before 22.04):
 
@@ -90,3 +93,32 @@ cargo run --features tray-icon --features cuda
 ```bash
 cargo build --features tray-icon --features cuda
 ```
+
+## Debian Package
+
+### Building the Debian Package
+
+To build a Debian package (.deb) for easy installation, you can use the provided script:
+
+```bash
+./build_deb.sh
+```
+
+Or manually run:
+
+```bash
+dpkg-buildpackage -us -uc -b
+```
+
+This will create a .deb file in the parent directory.
+
+### Installing the Debian Package
+
+To install the generated Debian package:
+
+```bash
+sudo dpkg -i ../voice-input_0.1.0-1_amd64.deb
+sudo apt-get install -f  # Install any missing dependencies
+```
+
+After installation, you can launch the application from your application menu or by running `voice-input` in the terminal.

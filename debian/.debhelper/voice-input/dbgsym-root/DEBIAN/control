@@ -1,0 +1,13 @@
+Package: voice-input-dbgsym
+Package-Type: ddeb
+Source: voice-input
+Version: 0.1.0-1
+Auto-Built-Package: debug-symbols
+Architecture: amd64
+Maintainer: System Administrator <admin@example.com>
+Installed-Size: 1189
+Depends: voice-input (= 0.1.0-1)
+Section: debug
+Priority: optional
+Description: debug symbols for voice-input
+Build-Ids: c11d5dd988e93e6e2339cfe867c2adb5d3be7787
