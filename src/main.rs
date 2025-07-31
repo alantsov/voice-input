@@ -217,7 +217,19 @@ fn main() {
                             *lang.borrow_mut() = language_code.clone();
                         });
 
-                        // Initialize Whisper on keydown
+                        // Clear previous recording and start new one
+                        let clear_recording_start = Instant::now();
+                        {
+                            let mut samples = recorded_samples.lock().unwrap();
+                            samples.clear();
+                            *recording.lock().unwrap() = true;
+                        }
+                        TIMING_INFO.lock().unwrap().insert("clear_recording".to_string(), clear_recording_start.elapsed());
+
+                        // Resume the stream to start recording
+                        stream.play().expect("Failed to start the stream");
+
+                        // Initialize Whisper after starting recording
                         let whisper_init_start = Instant::now();
                         let is_english = language_code.starts_with("en");
 
@@ -248,7 +260,7 @@ fn main() {
                                 // Initialize English transcriber if not already initialized
                                 let mut english_guard = english_transcriber.lock().unwrap();
                                 if english_guard.is_none() {
-                                    println!("Initializing English transcriber on keydown");
+                                    println!("Initializing English transcriber after starting recording");
                                     match WhisperTranscriber::new(english_model) {
                                         Ok(t) => *english_guard = Some(t),
                                         Err(e) => {
@@ -261,7 +273,7 @@ fn main() {
                                 // Initialize multilingual transcriber if not already initialized
                                 let mut multilingual_guard = multilingual_transcriber.lock().unwrap();
                                 if multilingual_guard.is_none() {
-                                    println!("Initializing multilingual transcriber on keydown");
+                                    println!("Initializing multilingual transcriber after starting recording");
                                     match WhisperTranscriber::new(multilingual_model) {
                                         Ok(t) => *multilingual_guard = Some(t),
                                         Err(e) => {
@@ -300,18 +312,6 @@ fn main() {
 
                         // Record time for Whisper initialization
                         TIMING_INFO.lock().unwrap().insert("whisper_initialization".to_string(), whisper_init_start.elapsed());
-
-                        // Clear previous recording and start new one
-                        let clear_recording_start = Instant::now();
-                        {
-                            let mut samples = recorded_samples.lock().unwrap();
-                            samples.clear();
-                            *recording.lock().unwrap() = true;
-                        }
-                        TIMING_INFO.lock().unwrap().insert("clear_recording".to_string(), clear_recording_start.elapsed());
-
-                        // Resume the stream to start recording
-                        stream.play().expect("Failed to start the stream");
 
                         // Calculate and display total time from key press to stream start
                         if let Some(press_time) = *KEY_PRESS_TIME.lock().unwrap() {
