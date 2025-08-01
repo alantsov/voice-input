@@ -142,7 +142,10 @@ pub fn init_tray_icon() -> Result<(), String> {
     about.connect_activate(|_| {
         let dialog = AboutDialog::new();
         dialog.set_program_name("Voice Input");
-        dialog.set_comments(Some("A simple application for recording voice input using the microphone."));
+        dialog.set_comments(Some("A simple application for recording voice input using the microphone.\n\n\
+                                 • Press Ctrl+CAPSLOCK to start and finish recording\n\
+                                 • Transcribed text will be inserted into the current application\n\
+                                 • Transcription language is determined by your current keyboard layout"));
         dialog.run();
         // dialog.destroy();
     });
