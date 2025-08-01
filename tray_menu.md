@@ -25,7 +25,7 @@ This document outlines the UX design for the Voice Input application's tray menu
 **Legend:**
 - ✓ = Downloaded model
 - ⬇ = Currently downloading
-- ○ = Not downloaded
+- ○ = Not selected model
 - ● = Currently selected model
 
 ## Recording State
@@ -99,20 +99,16 @@ This document outlines the UX design for the Voice Input application's tray menu
 ├─────────────────────────────┤
 │ ● base (✓)                  │
 │   Size: 142MB               │
-│   Languages: English        │
 │                             │
 │ ○ small (✓)                 │
 │   Size: 466MB               │
-│   Languages: English        │
 │                             │
 │ ○ medium (not downloaded)   │
 │   Size: 1.5GB               │
-│   Languages: English        │
 │   [Download]                │
 │                             │
 │ ○ large (not downloaded)    │
 │   Size: 2.9GB               │
-│   Languages: Multilingual   │
 │   [Download]                │
 └─────────────────────────────┘
 ```
@@ -123,16 +119,18 @@ This document outlines the UX design for the Voice Input application's tray menu
 ┌─────────────────────────────┐
 │ ⚠️ Voice Input              │
 ├─────────────────────────────┤
-│ Status: Download failed     │
-│ Error: Network timeout      │
+│ Status: Ready               │
 │ Model: base (✓)             │
 │ Failed: medium [Retry]      │
+│ Error: Network timeout      │
 ├─────────────────────────────┤
 │ Change Model ▶              │
 │ About                       │
 │ Quit                        │
 └─────────────────────────────┘
 ```
+
+Note: When at least one model is loaded, the app status shows the status of the loaded model (e.g., "Ready") rather than "Download failed". The download failure is shown as a separate line.
 
 ## Legend for All Views
 
@@ -144,5 +142,5 @@ This document outlines the UX design for the Voice Input application's tray menu
 - ✓ = Downloaded model
 - ⬇ = Currently downloading
 - ❌ = Download failed
-- ○ = Not downloaded
+- ○ = Not selected model
 - ● = Currently selected model
