@@ -332,8 +332,8 @@ impl WhisperTranscriber {
 
     /// Transcribe audio from a WAV file
     /// If language is provided, it will be used for transcription
-    /// Returns the transcript and timing information for audio conversion and transcription
-    pub fn transcribe_audio(&self, audio_path: &str, language: Option<&str>) -> Result<(String, std::time::Duration, std::time::Duration), String> {
+    /// Returns the transcript
+    pub fn transcribe_audio(&self, audio_path: &str, language: Option<&str>) -> Result<String, String> {
         println!("Starting transcription of audio file: {}", audio_path);
 
         // Check GPU memory usage before transcription
@@ -349,15 +349,8 @@ impl WhisperTranscriber {
             Err(_) => {}
         }
 
-        // Start timing for audio conversion
-        let conversion_start = std::time::Instant::now();
-
         // Load audio samples from WAV file
         let audio_data = self.load_audio_from_wav(audio_path)?;
-
-        // Record time for audio conversion
-        let conversion_duration = conversion_start.elapsed();
-        println!("Audio conversion completed in {:.2?}", conversion_duration);
         println!("Loaded audio data: {} samples", audio_data.len());
 
         // Create parameters for transcription
@@ -417,16 +410,11 @@ impl WhisperTranscriber {
             println!("CUDA GPU acceleration is not available, using CPU only");
         }
 
-        // Start timing for actual transcription
-        let transcription_start = std::time::Instant::now();
-
         // Process the audio
         state.full(params, &audio_data[..])
             .map_err(|e| format!("Failed to process audio: {}", e))?;
 
-        // Record time for actual transcription
-        let transcription_duration = transcription_start.elapsed();
-        println!("Audio processed in {:.2?}", transcription_duration);
+        println!("Audio processed successfully");
 
         // Check GPU memory usage after transcription
         match Command::new("nvidia-smi")
@@ -457,7 +445,7 @@ impl WhisperTranscriber {
 
         // No longer saving transcript to file
 
-        Ok((transcript, conversion_duration, transcription_duration))
+        Ok(transcript)
     }
 
     /// Load audio data from a WAV file
