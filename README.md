@@ -95,6 +95,15 @@ cargo run --features tray-icon --features cuda
 cargo build --features tray-icon --features cuda
 ```
 
+## Data Storage
+
+The application follows the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html) for storing data:
+
+- Configuration files are stored in `~/.config/voice_input/` (or the equivalent XDG config directory)
+- Model weights are stored in `~/.local/share/voice_input/models/` (or the equivalent XDG data directory)
+
+When you first run the application, it will download the necessary model files to the appropriate XDG directory. For backward compatibility, the application will also check the current directory for model files.
+
 ## Debian Package
 
 ### Building the Debian Package

@@ -82,9 +82,9 @@ pub fn init_tray_icon() -> Result<(), String> {
                 // Get both English and multilingual model filenames
                 let (en_model_file, multi_model_file) = get_both_model_filenames(&model_clone);
 
-                // Check if either model file doesn't exist
-                let en_exists = Path::new(&en_model_file).exists();
-                let multi_exists = Path::new(&multi_model_file).exists();
+                // Check if either model file doesn't exist in XDG data directory or current directory
+                let en_exists = config::get_model_path(&en_model_file).is_some();
+                let multi_exists = config::get_model_path(&multi_model_file).is_some();
 
                 if !en_exists || !multi_exists {
                     // Set loading flag

@@ -138,7 +138,7 @@ fn main() {
     println!("Downloading base models...");
 
     // Download English model if it doesn't exist
-    if !std::path::Path::new(english_model).exists() {
+    if config::get_model_path(english_model).is_none() {
         println!("Downloading English model...");
         if let Err(e) = WhisperTranscriber::download_model(english_model) {
             eprintln!("Failed to download English model: {}", e);
@@ -146,7 +146,7 @@ fn main() {
     }
 
     // Download multilingual model if it doesn't exist
-    if !std::path::Path::new(multilingual_model).exists() {
+    if config::get_model_path(multilingual_model).is_none() {
         println!("Downloading multilingual model...");
         if let Err(e) = WhisperTranscriber::download_model(multilingual_model) {
             eprintln!("Failed to download multilingual model: {}", e);
@@ -251,8 +251,8 @@ fn main() {
                             }
                         };
 
-                        // Check if the model file exists
-                        if !std::path::Path::new(&model_file).exists() {
+                        // Check if the model file exists in XDG data directory or current directory
+                        if config::get_model_path(&model_file).is_none() {
                             println!("Model file {} does not exist. Using base model instead.", model_file);
 
                             // Use base model as fallback

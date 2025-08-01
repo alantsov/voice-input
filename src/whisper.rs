@@ -1,10 +1,11 @@
 use std::fs::File;
 use std::io::{Write, Read};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 use reqwest::blocking::Client;
 use indicatif::{ProgressBar, ProgressStyle};
 use std::process::Command;
+use crate::config;
 
 pub struct WhisperTranscriber {
     context: WhisperContext,
@@ -138,19 +139,32 @@ impl WhisperTranscriber {
         Ok(context)
     }
 
-    /// Create a new WhisperTranscriber with the specified model path
+    /// Create a new WhisperTranscriber with the specified model name
     /// If the model doesn't exist, it will be downloaded automatically
-    pub fn new(model_path: &str) -> Result<Self, String> {
+    pub fn new(model_name: &str) -> Result<Self, String> {
         // Log GPU information before loading the model
         Self::log_gpu_info();
 
-        // Check if the model exists, download it if it doesn't
-        if !Path::new(model_path).exists() {
+        // Get the model path using the config module
+        let model_path_opt = config::get_model_path(model_name);
+        
+        // If model doesn't exist in either location, download it
+        if model_path_opt.is_none() {
             println!("Model file not found. Downloading...");
-            Self::download_model(model_path)?;
+            Self::download_model(model_name)?;
         }
+        
+        // Get the path again after potential download
+        let model_path = config::get_model_path(model_name).ok_or_else(|| 
+            format!("Failed to locate model file after download: {}", model_name)
+        )?;
+        
+        // Convert PathBuf to string for the whisper-rs functions
+        let model_path_str = model_path.to_str().ok_or_else(|| 
+            format!("Invalid UTF-8 in model path: {:?}", model_path)
+        )?;
 
-        println!("Loading whisper model: {}", model_path);
+        println!("Loading whisper model: {}", model_path_str);
         let start_time = std::time::Instant::now();
 
         // Create context with CUDA support when available
@@ -158,7 +172,7 @@ impl WhisperTranscriber {
         {
             println!("Attempting to initialize model with CUDA support");
             // Try to initialize with CUDA first
-            match Self::init_with_cuda(model_path) {
+            match Self::init_with_cuda(model_path_str) {
                 Ok(context) => {
                     let load_duration = start_time.elapsed();
                     println!("Model loaded with CUDA in {:.2?}", load_duration);
@@ -182,7 +196,7 @@ impl WhisperTranscriber {
 
         // CPU fallback or default path when CUDA is not enabled
         let temp_params = WhisperContextParameters::default();
-        let context = WhisperContext::new_with_params(model_path, temp_params)
+        let context = WhisperContext::new_with_params(model_path_str, temp_params)
             .map_err(|e| format!("Failed to create whisper context: {}", e))?;
 
         let load_duration = start_time.elapsed();
@@ -235,7 +249,12 @@ impl WhisperTranscriber {
         while retry_count < max_retries {
             match Self::download_with_retry(&client, &url, model_name, retry_count) {
                 Ok(_) => {
-                    println!("Model downloaded successfully to: {}", model_name);
+                    // Get the path where the model was saved for display purposes
+                    if let Ok(path) = config::get_model_save_path(model_name) {
+                        println!("Model downloaded successfully to: {}", path.display());
+                    } else {
+                        println!("Model downloaded successfully");
+                    }
                     return Ok(());
                 },
                 Err(e) => {
@@ -278,8 +297,14 @@ impl WhisperTranscriber {
             .unwrap()
             .progress_chars("#>-"));
 
+        // Get the path where the model should be saved (in XDG data directory)
+        let model_path = config::get_model_save_path(model_name)
+            .map_err(|e| format!("Failed to determine model save path: {}", e))?;
+        
+        println!("Saving model to: {}", model_path.display());
+        
         // Create the file
-        let mut file = File::create(model_name)
+        let mut file = File::create(&model_path)
             .map_err(|e| format!("Failed to create model file: {}", e))?;
 
         // Use a buffer to read the response in chunks
