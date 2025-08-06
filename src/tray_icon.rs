@@ -43,7 +43,7 @@ pub fn init_tray_icon() -> Result<(), String> {
     let model_menu = Menu::new();
 
     // Create model options
-    let model_options = vec!["base", "small", "medium", "large"];
+    let model_options = vec!["tiny", "base", "small", "medium", "large"];
     let mut model_items = Vec::new();
 
     // Add model options to the menu
@@ -170,8 +170,8 @@ pub fn init_tray_icon() -> Result<(), String> {
 #[cfg(feature = "tray-icon")]
 fn get_both_model_filenames(model: &str) -> (String, String) {
     match model {
-        "base" | "small" | "medium" => {
-            // For base, small, medium: both English and multilingual models
+        "base" | "tiny" | "small" | "medium" => {
+            // For base, tiny, small, medium: both English and multilingual models
             (
                 format!("ggml-{}.en.bin", model),
                 format!("ggml-{}.bin", model)
