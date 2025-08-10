@@ -17,6 +17,19 @@ use crate::{SELECTED_MODEL, MODEL_LOADING};
 use crate::whisper::WhisperTranscriber;
 #[cfg(feature = "tray-icon")]
 use crate::config;
+#[cfg(feature = "tray-icon")]
+use gtk::glib::{self, Priority, ControlFlow};
+#[cfg(feature = "tray-icon")]
+use lazy_static::lazy_static;
+#[cfg(feature = "tray-icon")]
+use std::sync::Mutex;
+#[cfg(feature = "tray-icon")]
+use std::collections::HashMap;
+
+#[cfg(feature = "tray-icon")]
+lazy_static! {
+    static ref TRAY_UI_TX: Mutex<Option<glib::Sender<String>>> = Mutex::new(None);
+}
 
 /// Initialize the system tray icon
 /// 
@@ -44,7 +57,11 @@ pub fn init_tray_icon() -> Result<(), String> {
 
     // Create model options
     let model_options = vec!["tiny", "base", "small", "medium", "large"];
-    let mut model_items = Vec::new();
+    let mut model_items: Vec<CheckMenuItem> = Vec::new();
+
+    // Channel to update UI from background threads
+    let (tx, rx) = glib::MainContext::channel::<String>(Priority::DEFAULT);
+    *TRAY_UI_TX.lock().unwrap() = Some(tx);
 
     // Add model options to the menu
     for model in &model_options {
@@ -99,8 +116,8 @@ pub fn init_tray_icon() -> Result<(), String> {
                     let multi_model_file_clone = multi_model_file.clone();
                     let model_clone_thread = model_clone.clone();
 
-                    // We'll use a simpler approach without capturing UI elements
-                    // The download thread will update MODEL_LOADING when it's done
+                    // We'll use a simpler approach where the download thread sends a message
+                    // to the GTK thread to update the UI when done
 
                     // Download the models in a separate thread
                     thread::spawn(move || {
@@ -122,6 +139,11 @@ pub fn init_tray_icon() -> Result<(), String> {
 
                         // Reset loading flag
                         *MODEL_LOADING.lock().unwrap() = false;
+
+                        // Notify GTK thread to update the tray menu (if channel is available)
+                        if let Some(ref tx) = *TRAY_UI_TX.lock().unwrap() {
+                            let _ = tx.send(model_clone_thread.clone());
+                        }
                     });
                 }
             }
@@ -158,6 +180,28 @@ pub fn init_tray_icon() -> Result<(), String> {
         std::process::exit(0);
     });
     menu.append(&quit);
+
+    // Attach the receiver to update UI when model finishes loading
+    {
+        // Build a map from model name to its menu item for easy updates
+        let mut items_map: HashMap<String, CheckMenuItem> = HashMap::new();
+        for (i, name) in model_options.iter().enumerate() {
+            if let Some(item) = model_items.get(i) {
+                items_map.insert((*name).to_string(), item.clone());
+            }
+        }
+        let model_menu_item_for_rx = model_menu_item.clone();
+        rx.attach(None, move |model_name: String| {
+            // Update the top label
+            model_menu_item_for_rx.set_label(&format!("Model: {}", model_name));
+            // Update each check item label and active state
+            for (name, item) in items_map.iter() {
+                item.set_label(name);
+                item.set_active(name == &model_name);
+            }
+            ControlFlow::Continue
+        });
+    }
 
     menu.show_all();
     indicator.set_menu(&mut menu);
