@@ -41,6 +41,18 @@ lazy_static! {
 /// Returns `Ok(())` if the tray icon was successfully initialized, or an
 /// `Err` with a description of the error otherwise.
 #[cfg(feature = "tray-icon")]
+fn format_eta(secs: u64) -> String {
+    let hours = secs / 3600;
+    let minutes = (secs % 3600) / 60;
+    let seconds = secs % 60;
+    if hours > 0 {
+        format!("{}:{:02}:{:02}", hours, minutes, seconds)
+    } else {
+        format!("{:02}:{:02}", minutes, seconds)
+    }
+}
+
+#[cfg(feature = "tray-icon")]
 pub fn init_tray_icon() -> Result<(), String> {
     gtk::init().map_err(|e| format!("Failed to initialize GTK: {}", e))?;
 
@@ -121,6 +133,17 @@ pub fn init_tray_icon() -> Result<(), String> {
 
                     // Download the models in a separate thread
                     thread::spawn(move || {
+                        // Register progress callback to forward updates to GTK thread
+                        WhisperTranscriber::set_download_progress_callback(Some(Box::new({
+                            let model_for_cb = model_clone_thread.clone();
+                            move |percent, eta_secs| {
+                                if let Some(ref tx) = *TRAY_UI_TX.lock().unwrap() {
+                                    // Send compact progress message: P|model|percent|eta_secs
+                                    let _ = tx.send(format!("P|{}|{:.0}|{}", model_for_cb, percent, eta_secs));
+                                }
+                            }
+                        })));
+
                         // Download English model if it doesn't exist
                         if !en_exists && model_clone_thread != "large" {
                             println!("Downloading English model: {}", en_model_file_clone);
@@ -136,6 +159,9 @@ pub fn init_tray_icon() -> Result<(), String> {
                                 eprintln!("Failed to download multilingual model {}: {}", model_clone_thread, e);
                             }
                         }
+
+                        // Clear the progress callback
+                        WhisperTranscriber::set_download_progress_callback(None);
 
                         // Reset loading flag
                         *MODEL_LOADING.lock().unwrap() = false;
@@ -191,13 +217,29 @@ pub fn init_tray_icon() -> Result<(), String> {
             }
         }
         let model_menu_item_for_rx = model_menu_item.clone();
-        rx.attach(None, move |model_name: String| {
-            // Update the top label
-            model_menu_item_for_rx.set_label(&format!("Model: {}", model_name));
-            // Update each check item label and active state
-            for (name, item) in items_map.iter() {
-                item.set_label(name);
-                item.set_active(name == &model_name);
+        rx.attach(None, move |msg: String| {
+            // Handle progress messages: "P|model|percent|eta_secs"
+            if let Some(rest) = msg.strip_prefix("P|") {
+                let parts: Vec<&str> = rest.split('|').collect();
+                if parts.len() == 3 {
+                    let model = parts[0];
+                    let percent = parts[1];
+                    let eta_secs: u64 = parts[2].parse().unwrap_or(0);
+                    let eta_formatted = format_eta(eta_secs);
+                    model_menu_item_for_rx.set_label(&format!("Model: {} ({}% - {} left)", model, percent, eta_formatted));
+                    if let Some(item) = items_map.get(model) {
+                        item.set_label(&format!("{} ({}% - {} left)", model, percent, eta_formatted));
+                    }
+                }
+            } else {
+                let model_name = msg;
+                // Update the top label
+                model_menu_item_for_rx.set_label(&format!("Model: {}", model_name));
+                // Update each check item label and active state
+                for (name, item) in items_map.iter() {
+                    item.set_label(name);
+                    item.set_active(name == &model_name);
+                }
             }
             ControlFlow::Continue
         });

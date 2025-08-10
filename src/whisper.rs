@@ -6,12 +6,24 @@ use reqwest::blocking::Client;
 use indicatif::{ProgressBar, ProgressStyle};
 use std::process::Command;
 use crate::config;
+use std::time::{Instant, Duration};
+use lazy_static::lazy_static;
+use std::sync::Mutex;
+
+lazy_static! {
+    static ref DL_PROGRESS_CB: Mutex<Option<Box<dyn Fn(f64, u64) + Send + 'static>>> = Mutex::new(None);
+}
 
 pub struct WhisperTranscriber {
     context: WhisperContext,
 }
 
 impl WhisperTranscriber {
+    /// Set or clear a global download progress callback.
+    /// The callback receives (percent, eta_secs).
+    pub fn set_download_progress_callback(cb: Option<Box<dyn Fn(f64, u64) + Send + 'static>>) {
+        *DL_PROGRESS_CB.lock().unwrap() = cb;
+    }
     /// Check if NVIDIA GPU is available and log GPU information
     fn log_gpu_info() {
         println!("Checking for GPU availability...");
@@ -311,6 +323,11 @@ impl WhisperTranscriber {
         let mut buffer = [0; 8192]; // 8KB buffer
         let mut downloaded: u64 = 0;
 
+        // Timing for ETA and throttling
+        let start_time = Instant::now();
+        let mut last_emit = start_time;
+        let emit_every = Duration::from_millis(200);
+
         // Read and write in chunks
         loop {
             let bytes_read = match response.read(&mut buffer) {
@@ -324,6 +341,23 @@ impl WhisperTranscriber {
 
             downloaded += bytes_read as u64;
             pb.set_position(downloaded);
+
+            // Emit progress to callback if available and total_size is known
+            if total_size > 0 {
+                let now = Instant::now();
+                if now.duration_since(last_emit) >= emit_every || downloaded == total_size {
+                    let elapsed = now.duration_since(start_time).as_secs_f64();
+                    let rate = if elapsed > 0.0 { downloaded as f64 / elapsed } else { 0.0 };
+                    let remaining_bytes = (total_size.saturating_sub(downloaded)) as f64;
+                    let eta_secs = if rate > 0.0 { (remaining_bytes / rate).round() as u64 } else { 0 };
+                    let percent = (downloaded as f64 / total_size as f64) * 100.0;
+
+                    if let Some(ref cb) = *DL_PROGRESS_CB.lock().unwrap() {
+                        cb(percent, eta_secs);
+                    }
+                    last_emit = now;
+                }
+            }
         }
 
         pb.finish_with_message("Download complete");
