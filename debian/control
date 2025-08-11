@@ -32,6 +32,7 @@ Depends: ${shlibs:Depends},
          libayatana-appindicator3-1,
          libxcb-shape0,
          libxcb-xfixes0
+Recommends: libnvidia-compute-565
 Description: Voice Input Application
  A simple application for recording voice input using the microphone.
  .
