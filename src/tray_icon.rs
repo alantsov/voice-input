@@ -123,6 +123,11 @@ pub fn init_tray_icon() -> Result<(), String> {
                     check_item.set_label(&format!("{} (loading...)", model_clone));
                     model_menu_item_clone.set_label(&format!("Model: {} (loading...)", model_clone));
 
+                    // Ensure only the selected model is checked in the submenu
+                    if let Some(ref tx) = *TRAY_UI_TX.lock().unwrap() {
+                        let _ = tx.send(model_clone.clone());
+                    }
+
                     // Clone for the thread
                     let en_model_file_clone = en_model_file.clone();
                     let multi_model_file_clone = multi_model_file.clone();
@@ -171,6 +176,10 @@ pub fn init_tray_icon() -> Result<(), String> {
                             let _ = tx.send(model_clone_thread.clone());
                         }
                     });
+                } else {
+                    if let Some(ref tx) = *TRAY_UI_TX.lock().unwrap() {
+                        let _ = tx.send(model_clone.clone());
+                    }
                 }
             }
         });
@@ -233,11 +242,16 @@ pub fn init_tray_icon() -> Result<(), String> {
                 }
             } else {
                 let model_name = msg;
-                // Update the top label
-                model_menu_item_for_rx.set_label(&format!("Model: {}", model_name));
-                // Update each check item label and active state
+                let is_loading = *MODEL_LOADING.lock().unwrap();
+                // Update the top label only if not loading (to avoid overwriting progress/loading labels)
+                if !is_loading {
+                    model_menu_item_for_rx.set_label(&format!("Model: {}", model_name));
+                }
+                // Update each check item active state; refresh labels only if not loading
                 for (name, item) in items_map.iter() {
-                    item.set_label(name);
+                    if !is_loading {
+                        item.set_label(name);
+                    }
                     item.set_active(name == &model_name);
                 }
             }
