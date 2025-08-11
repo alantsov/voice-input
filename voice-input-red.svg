@@ -1,0 +1,20 @@
+<svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <!-- Microphone body -->
+    <rect x="10" y="3" width="4" height="10" rx="2" fill="red"/>
+
+    <!-- Microphone stand -->
+    <path d="M12 15 L12 19" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    <path d="M9 19 L15 19" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+
+    <!-- Sound waves / recording indicator -->
+    <path d="M7 9 C7 6.8 9.2 5 12 5 C14.8 5 17 6.8 17 9 L17 11 C17 13.2 14.8 15 12 15 C9.2 15 7 13.2 7 11 L7 9"
+          stroke="currentColor" stroke-width="1.5" fill="none"/>
+
+    <!-- Text/transcription lines -->
+    <path d="M18 7 L21 7" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
+    <path d="M18 9 L20 9" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
+    <path d="M18 11 L21 11" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
+
+    <!-- Insert arrow -->
+    <path d="M19 13 L19 15 L17 14" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>
