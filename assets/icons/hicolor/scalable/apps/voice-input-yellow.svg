@@ -1,20 +1,84 @@
-<svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-    <!-- Microphone body -->
-    <rect x="10" y="3" width="4" height="10" rx="2" fill="#F59E0B"/>
-
-    <!-- Microphone stand -->
-    <path d="M12 15 L12 19" stroke="#F59E0B" stroke-width="1.5" stroke-linecap="round"/>
-    <path d="M9 19 L15 19" stroke="#F59E0B" stroke-width="1.5" stroke-linecap="round"/>
-
-    <!-- Sound waves / recording indicator -->
-    <path d="M7 9 C7 6.8 9.2 5 12 5 C14.8 5 17 6.8 17 9 L17 11 C17 13.2 14.8 15 12 15 C9.2 15 7 13.2 7 11 L7 9"
-          stroke="#F59E0B" stroke-width="1.5" fill="none"/>
-
-    <!-- Text/transcription lines -->
-    <path d="M18 7 L21 7" stroke="#F59E0B" stroke-width="1" stroke-linecap="round"/>
-    <path d="M18 9 L20 9" stroke="#F59E0B" stroke-width="1" stroke-linecap="round"/>
-    <path d="M18 11 L21 11" stroke="#F59E0B" stroke-width="1" stroke-linecap="round"/>
-
-    <!-- Insert arrow -->
-    <path d="M19 13 L19 15 L17 14" stroke="#F59E0B" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   width="24"
+   height="24"
+   viewBox="0 0 24 24"
+   version="1.1"
+   id="svg79"
+   sodipodi:docname="voice-input.svg"
+   inkscape:version="1.1.2 (0a00cf5339, 2022-02-04)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs83" />
+  <sodipodi:namedview
+     id="namedview81"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:pageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     showgrid="false"
+     inkscape:zoom="30.416667"
+     inkscape:cx="11.983562"
+     inkscape:cy="12"
+     inkscape:window-width="1920"
+     inkscape:window-height="939"
+     inkscape:window-x="0"
+     inkscape:window-y="32"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg79" />
+  <!-- Microphone body -->
+  <rect
+     x="8.6896143"
+     y="0.029035425"
+     width="4.4360628"
+     height="10.496555"
+     rx="2.2180314"
+     fill="#F59E0B"
+     id="rect63"
+     style="stroke-width:1.07893" />
+  <!-- Microphone stand -->
+  <path
+     d="m 10.980528,15.05906 v 5.802402"
+     stroke="#F59E0B"
+     stroke-width="1.90254"
+     stroke-linecap="round"
+     id="path65" />
+  <path
+     d="M 7.3634281,21.075622 H 14.017523"
+     stroke="#F59E0B"
+     stroke-width="1.61839"
+     stroke-linecap="round"
+     id="path67" />
+  <!-- Sound waves / recording indicator -->
+  <path
+     d="m 5.4586866,8.3734559 c 0,-2.3791453 2.4398346,-4.3257187 5.5450784,-4.3257187 3.105244,0 5.545079,1.9465734 5.545079,4.3257187 v 2.1628601 c 0,2.379145 -2.439835,4.325718 -5.545079,4.325718 -3.1052438,0 -5.5450784,-1.946573 -5.5450784,-4.325718 V 8.3734559"
+     stroke="#F59E0B"
+     stroke-width="1.6427"
+     fill="none"
+     id="path69" />
+  <!-- Text/transcription lines -->
+  <path
+     d="m 16.710046,19.331166 h 3.327048"
+     stroke="#F59E0B"
+     stroke-width="1.07893"
+     stroke-linecap="round"
+     id="path71" />
+  <path
+     d="m 16.747846,15.561064 h 2.218032"
+     stroke="#F59E0B"
+     stroke-width="1.07893"
+     stroke-linecap="round"
+     id="path73" />
+  <path
+     d="m 16.712622,17.500631 h 3.327047"
+     stroke="#F59E0B"
+     stroke-width="1.07893"
+     stroke-linecap="round"
+     id="path75" />
+  <!-- Insert arrow -->
 </svg>
