@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Configuration
+SRC_SVG="voice-input.svg"
+OUT_ROOT="assets/icons/hicolor"
+SIZES=(16 22 24 32 48)
+
+# Define your state colors (hex). Adjust to your palette if needed.
+declare -A COLORS=(
+  [blue]="#3B82F6"
+  [red]="#EF4444"
+  [yellow]="#F59E0B"
+  [white]="#FFFFFF"
+)
+
+# Tools: prefer rsvg-convert; fallback to Inkscape
+have_rsvg=false
+have_inkscape=false
+if command -v rsvg-convert >/dev/null 2>&1; then
+  have_rsvg=true
+elif command -v inkscape >/dev/null 2>&1; then
+  have_inkscape=true
+else
+  echo "Error: Need rsvg-convert (librsvg) or inkscape installed." >&2
+  exit 1
+fi
+
+# Ensure input exists
+if [[ ! -f "$SRC_SVG" ]]; then
+  echo "Error: Source SVG not found: $SRC_SVG" >&2
+  exit 1
+fi
+
+# Prepare output directories
+mkdir -p "${OUT_ROOT}/scalable/apps"
+for sz in "${SIZES[@]}"; do
+  mkdir -p "${OUT_ROOT}/${sz}x${sz}/apps"
+done
+
+# Function to render a PNG at SIZE from an SVG
+render_png() {
+  local svg_path="$1"
+  local size="$2"
+  local png_path="$3"
+
+  if $have_rsvg; then
+    rsvg-convert -w "$size" -h "$size" -o "$png_path" "$svg_path"
+  else
+    # Inkscape CLI (1.0+ syntax)
+    inkscape "$svg_path" --export-type=png --export-filename="$png_path" -w "$size" -h "$size" >/dev/null
+  fi
+}
+
+# Work directory for generated colored SVGs before copying
+TMP_DIR="$(mktemp -d)"
+cleanup() { rm -rf "$TMP_DIR"; }
+trap cleanup EXIT
+
+echo "Generating colored variants and PNGs..."
+for name in "${!COLORS[@]}"; do
+  color="${COLORS[$name]}"
+  base_out_name="voice-input-${name}"
+  tmp_svg="${TMP_DIR}/${base_out_name}.svg"
+
+  # Replace currentColor with the chosen color (case-sensitive, exact token)
+  # This leaves fill=\"none\" and other attributes intact.
+  sed 's/currentColor/'"$color"'/g' "$SRC_SVG" > "$tmp_svg"
+
+  # Save the colored SVG into scalable/apps
+  out_svg="${OUT_ROOT}/scalable/apps/${base_out_name}.svg"
+  cp "$tmp_svg" "$out_svg"
+
+  # Render PNGs for all sizes
+  for sz in "${SIZES[@]}"; do
+    out_png="${OUT_ROOT}/${sz}x${sz}/apps/${base_out_name}.png"
+    render_png "$tmp_svg" "$sz" "$out_png"
+    echo "  -> ${sz}x${sz} ${base_out_name}.png"
+  done
+done
+
+echo "Done."
+echo "SVGs: ${OUT_ROOT}/scalable/apps/voice-input-{blue,red,yellow}.svg"
+echo "PNGs: ${OUT_ROOT}/{16x16,22x22,24x24,32x32,48x48}/apps/voice-input-*.png"
