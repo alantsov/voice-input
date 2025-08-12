@@ -9,7 +9,6 @@ use lazy_static::lazy_static;
 // Note: The enigo crate requires the libxdo-dev package on Linux
 // Install it with: sudo apt-get install libxdo-dev
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::fs::File;
 use std::process;
 use fs2::FileExt;

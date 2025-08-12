@@ -7,8 +7,6 @@ use libappindicator::{AppIndicator, AppIndicatorStatus};
 #[cfg(feature = "tray-icon")]
 use std::path::Path;
 #[cfg(feature = "tray-icon")]
-use std::process;
-#[cfg(feature = "tray-icon")]
 use std::thread;
 
 #[cfg(feature = "tray-icon")]

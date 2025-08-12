@@ -1,6 +1,5 @@
 use std::fs::File;
 use std::io::{Write, Read};
-use std::path::{Path, PathBuf};
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 use reqwest::blocking::Client;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -560,11 +559,5 @@ impl WhisperTranscriber {
         }
 
         Ok(resampled)
-    }
-
-    /// Save transcript to a text file (now a no-op as per requirements)
-    fn save_transcript(&self, _transcript: &str, filename: &str) -> Result<(), String> {
-        println!("Transcript would have been saved to {} (disabled)", filename);
-        Ok(())
     }
 }
