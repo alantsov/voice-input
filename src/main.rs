@@ -215,6 +215,12 @@ fn main() {
                         // Resume the stream to start recording
                         stream.play().expect("Failed to start the stream");
 
+                        // Update tray icon: recording (red)
+                        #[cfg(feature = "tray-icon")]
+                        {
+                            crate::tray_icon::tray_icon_set_state("red");
+                        }
+
                         // Initialize Whisper after starting recording
                         let is_english = language_code.starts_with("en");
 
@@ -315,6 +321,12 @@ fn main() {
                         // Pause the stream
                         stream.pause().expect("Failed to pause the stream");
 
+                        // Update tray icon: processing/transcribing (blue)
+                        #[cfg(feature = "tray-icon")]
+                        {
+                            crate::tray_icon::tray_icon_set_state("blue");
+                        }
+
                         // Create a temporary WAV file in memory for transcription
                         let timestamp = Local::now().format("%Y%m%d_%H%M%S").to_string();
                         let filename = format!("temp_voice_{}.wav", timestamp);
@@ -408,8 +420,19 @@ fn main() {
                             } else {
                                 println!("Temporary file {} deleted", filename);
                             }
+
+                            // Back to ready: white
+                            #[cfg(feature = "tray-icon")]
+                            {
+                                crate::tray_icon::tray_icon_set_state("white");
+                            }
                         } else {
                             println!("No audio recorded");
+                            // Back to ready: white
+                            #[cfg(feature = "tray-icon")]
+                            {
+                                crate::tray_icon::tray_icon_set_state("white");
+                            }
                         }
                     }
                 }

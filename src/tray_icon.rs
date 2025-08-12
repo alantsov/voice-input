@@ -25,6 +25,10 @@ use lazy_static::lazy_static;
 use std::sync::Mutex;
 #[cfg(feature = "tray-icon")]
 use std::collections::HashMap;
+#[cfg(feature = "tray-icon")]
+use std::rc::Rc;
+#[cfg(feature = "tray-icon")]
+use std::cell::RefCell;
 
 #[cfg(feature = "tray-icon")]
 lazy_static! {
@@ -56,8 +60,40 @@ fn format_eta(secs: u64) -> String {
 pub fn init_tray_icon() -> Result<(), String> {
     gtk::init().map_err(|e| format!("Failed to initialize GTK: {}", e))?;
 
-    let mut indicator = AppIndicator::new("voice_input", "indicator-messages");
-    indicator.set_status(AppIndicatorStatus::Active);
+    let indicator = Rc::new(RefCell::new(AppIndicator::new("voice_input", "indicator-messages")));
+    indicator.borrow_mut().set_status(AppIndicatorStatus::Active);
+
+    // Prefer icons from assets/icons/hicolor/48x48/apps
+    let mut theme_set = false;
+    let preferred_subpath = Path::new("assets").join("icons").join("hicolor").join("48x48").join("apps");
+
+    if let Ok(cwd) = std::env::current_dir() {
+        let candidate = cwd.join(&preferred_subpath);
+        if candidate.exists() {
+            if let Some(dir_str) = candidate.to_str() {
+                indicator.borrow_mut().set_icon_theme_path(dir_str);
+                println!("Using tray icon theme path: {}", dir_str);
+                theme_set = true;
+            }
+        }
+    }
+    if !theme_set {
+        if let Ok(exe_path) = std::env::current_exe() {
+            if let Some(exe_dir) = exe_path.parent() {
+                let candidate = exe_dir.join(&preferred_subpath);
+                if candidate.exists() {
+                    if let Some(dir_str) = candidate.to_str() {
+                        indicator.borrow_mut().set_icon_theme_path(dir_str);
+                        println!("Using tray icon theme path: {}", dir_str);
+                        theme_set = true;
+                    }
+                }
+            }
+        }
+    }
+
+    // Default tray state: white (ready)
+    indicator.borrow_mut().set_icon("voice-input-white");
 
     let mut menu = Menu::new();
 
@@ -226,6 +262,7 @@ pub fn init_tray_icon() -> Result<(), String> {
             }
         }
         let model_menu_item_for_rx = model_menu_item.clone();
+        let indicator_for_rx = indicator.clone();
         rx.attach(None, move |msg: String| {
             // Handle progress messages: "P|model|percent|eta_secs"
             if let Some(rest) = msg.strip_prefix("P|") {
@@ -240,6 +277,15 @@ pub fn init_tray_icon() -> Result<(), String> {
                         item.set_label(&format!("{} ({}% - {} left)", model, percent, eta_formatted));
                     }
                 }
+            } else if let Some(rest) = msg.strip_prefix("ICON|") {
+                // ICON messages: ICON|white/red/blue
+                let icon_name = match rest {
+                    "white" => "voice-input-white",
+                    "red" => "voice-input-red",
+                    "blue" => "voice-input-blue",
+                    _ => "voice-input-white",
+                };
+                indicator_for_rx.borrow_mut().set_icon(icon_name);
             } else {
                 let model_name = msg;
                 let is_loading = *MODEL_LOADING.lock().unwrap();
@@ -260,10 +306,21 @@ pub fn init_tray_icon() -> Result<(), String> {
     }
 
     menu.show_all();
-    indicator.set_menu(&mut menu);
+    indicator.borrow_mut().set_menu(&mut menu);
 
     // Return success - we'll process GTK events in the main loop
     Ok(())
+}
+
+#[cfg(feature = "tray-icon")]
+pub fn tray_icon_set_state(state: &str) {
+    if let Some(ref tx) = *TRAY_UI_TX.lock().unwrap() {
+        let key = match state {
+            "white" | "red" | "blue" => state,
+            _ => "white",
+        };
+        let _ = tx.send(format!("ICON|{}", key));
+    }
 }
 
 
