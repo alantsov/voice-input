@@ -25,7 +25,6 @@ mod tray_icon;
 mod audio_stream;
 mod whisper;
 mod keyboard_layout;
-mod keyboard_simulator;
 mod clipboard_inserter;
 mod config;
 
