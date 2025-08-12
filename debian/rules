@@ -15,6 +15,9 @@ override_dh_auto_build:
 override_dh_auto_install:
 	mkdir -p debian/voice-input/usr/bin
 	cp target/release/voice_input debian/voice-input/usr/bin/voice-input
+	# Install icons into hicolor theme directories
+	mkdir -p debian/voice-input/usr/share/icons/hicolor
+	cp -r assets/icons/hicolor/* debian/voice-input/usr/share/icons/hicolor/
 
 override_dh_auto_clean:
 	cargo clean
