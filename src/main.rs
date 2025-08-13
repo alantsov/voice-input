@@ -175,6 +175,23 @@ fn ensure_transcriber_for(
     }
 }
 
+// New helper to deduplicate transcription call
+fn transcribe_with(
+    transcriber: &Arc<Mutex<Option<WhisperTranscriber>>>,
+    filename: &str,
+    language: &str,
+) -> Result<String, String> {
+    let guard = transcriber
+        .lock()
+        .map_err(|_| "Failed to lock transcriber".to_string())?;
+    if let Some(ref t) = *guard {
+        t.transcribe_audio(filename, Some(language))
+            .map_err(|e| format!("Failed to transcribe audio: {}", e))
+    } else {
+        Err("Transcriber is not available".to_string())
+    }
+}
+
 /// Download base models during startup if they are missing
 fn download_base_models() {
     let english_model = "ggml-base.en.bin";
@@ -352,49 +369,26 @@ fn main() {
                             println!("Using language code for transcription: {}", current_language);
                             let is_english = current_language.starts_with("en");
 
-                            if is_english {
-                                let english_guard = english_transcriber.lock().unwrap();
-                                if let Some(ref t) = *english_guard {
-                                    match t.transcribe_audio(&filename, Some(&current_language)) {
-                                        Ok(transcript) => {
-                                            println!("Transcription successful");
-                                            println!("Transcript preview: {}", 
-                                                     transcript.lines().take(2).collect::<Vec<_>>().join(" "));
-
-                                            // Insert the transcript at the current cursor position in a separate thread to avoid blocking
-                                            std::thread::spawn(move || {
-                                                clipboard_inserter::insert_text(&transcript);
-                                                println!("Transcript inserted at cursor position");
-                                            });
-                                        },
-                                        Err(e) => {
-                                            eprintln!("Failed to transcribe audio: {}", e);
-                                        }
-                                    }
-                                } else {
-                                    eprintln!("English transcriber is not available");
-                                }
+                            let result = if is_english {
+                                transcribe_with(&english_transcriber, &filename, &current_language)
                             } else {
-                                let multilingual_guard = multilingual_transcriber.lock().unwrap();
-                                if let Some(ref t) = *multilingual_guard {
-                                    match t.transcribe_audio(&filename, Some(&current_language)) {
-                                        Ok(transcript) => {
-                                            println!("Transcription successful");
-                                            println!("Transcript preview: {}", 
-                                                     transcript.lines().take(2).collect::<Vec<_>>().join(" "));
+                                transcribe_with(&multilingual_transcriber, &filename, &current_language)
+                            };
 
-                                            // Insert the transcript at the current cursor position in a separate thread to avoid blocking
-                                            std::thread::spawn(move || {
-                                                clipboard_inserter::insert_text(&transcript);
-                                                println!("Transcript inserted at cursor position");
-                                            });
-                                        },
-                                        Err(e) => {
-                                            eprintln!("Failed to transcribe audio: {}", e);
-                                        }
-                                    }
-                                } else {
-                                    eprintln!("Multilingual transcriber is not available");
+                            match result {
+                                Ok(transcript) => {
+                                    println!("Transcription successful");
+                                    println!("Transcript preview: {}", 
+                                             transcript.lines().take(2).collect::<Vec<_>>().join(" "));
+
+                                    // Insert the transcript at the current cursor position in a separate thread to avoid blocking
+                                    std::thread::spawn(move || {
+                                        clipboard_inserter::insert_text(&transcript);
+                                        println!("Transcript inserted");
+                                    });
+                                }
+                                Err(e) => {
+                                    eprintln!("{}", e);
                                 }
                             }
                         }
