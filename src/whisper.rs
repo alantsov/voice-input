@@ -481,6 +481,141 @@ impl WhisperTranscriber {
         Ok(transcript)
     }
 
+    /// Transcribe audio directly from in-memory samples.
+    /// Performs mono conversion and resampling to 16kHz if needed.
+    pub fn transcribe_samples(
+        &self,
+        samples: &[f32],
+        sample_rate: u32,
+        channels: u16,
+        language: Option<&str>,
+    ) -> Result<String, String> {
+        println!(
+            "Starting transcription of in-memory audio: {} samples at {} Hz, {} channels",
+            samples.len(),
+            sample_rate,
+            channels
+        );
+
+        // Check GPU memory usage before transcription
+        match Command::new("nvidia-smi")
+            .args(["--query-gpu=memory.used,memory.total,utilization.gpu", "--format=csv"])
+            .output()
+        {
+            Ok(output) => {
+                if output.status.success() {
+                    println!("GPU status before transcription:");
+                    println!("  {}", String::from_utf8_lossy(&output.stdout));
+                }
+            }
+            Err(_) => {}
+        }
+
+        // Convert to mono if needed
+        let mono_samples = if channels > 1 {
+            self.convert_to_mono(samples, channels as usize)
+        } else {
+            samples.to_vec()
+        };
+
+        // Resample to 16kHz if needed
+        let target_sample_rate = 16000;
+        let audio_data = if sample_rate != target_sample_rate {
+            self.resample(&mono_samples, sample_rate, target_sample_rate)?
+        } else {
+            mono_samples
+        };
+
+        println!("Prepared audio data: {} samples at 16kHz mono", audio_data.len());
+
+        // Create parameters for transcription
+        let mut params = FullParams::new(SamplingStrategy::BeamSearch {
+            beam_size: 5,
+            patience: 1.2,
+        });
+
+        // Set parameters as needed
+        params.set_print_special(false);
+        params.set_print_progress(false);
+        params.set_print_realtime(false);
+        params.set_print_timestamps(true);
+        params.set_temperature(0.0);
+
+        // Set number of threads to use
+        #[cfg(feature = "cuda")]
+        {
+            println!("Using default threads number for transcription with CUDA");
+        }
+        #[cfg(not(feature = "cuda"))]
+        {
+            params.set_n_threads(8);
+            println!("Using 8 threads for transcription (CPU only)");
+        }
+
+        // Set language if provided (use 2-letter code if possible)
+        if let Some(lang) = language {
+            let lang_code = if lang.len() >= 2 { &lang[0..2] } else { lang };
+            params.set_language(Some(lang_code));
+            println!("Using language '{}' for transcription", lang_code);
+        }
+
+        // Create a state for the context
+        let mut state = self
+            .context
+            .create_state()
+            .map_err(|e| format!("Failed to create state: {}", e))?;
+
+        println!("Starting audio processing...");
+
+        // CUDA availability logging
+        #[cfg(feature = "cuda")]
+        {
+            println!("CUDA GPU acceleration is enabled and will be used");
+        }
+        #[cfg(not(feature = "cuda"))]
+        {
+            println!("CUDA GPU acceleration is not available, using CPU only");
+        }
+
+        // Process the audio
+        state
+            .full(params, &audio_data[..])
+            .map_err(|e| format!("Failed to process audio: {}", e))?;
+
+        println!("Audio processed successfully");
+
+        // Check GPU memory usage after transcription
+        match Command::new("nvidia-smi")
+            .args(["--query-gpu=memory.used,memory.total,utilization.gpu", "--format=csv"])
+            .output()
+        {
+            Ok(output) => {
+                if output.status.success() {
+                    println!("GPU status after transcription:");
+                    println!("  {}", String::from_utf8_lossy(&output.stdout));
+                }
+            }
+            Err(_) => {}
+        }
+
+        // Extract the transcript
+        let num_segments = state
+            .full_n_segments()
+            .map_err(|e| format!("Failed to get number of segments: {}", e))?;
+
+        let mut transcript = String::new();
+        for i in 0..num_segments {
+            let segment = state
+                .full_get_segment_text(i)
+                .map_err(|e| format!("Failed to get segment {}: {}", i, e))?;
+            let short_segment = &segment.strip_prefix(" ");
+            transcript.push_str(short_segment.unwrap_or(&segment));
+            transcript.push('\n');
+        }
+
+        Ok(transcript)
+    }
+
     /// Load audio data from a WAV file
     fn load_audio_from_wav(&self, audio_path: &str) -> Result<Vec<f32>, String> {
         let reader = hound::WavReader::open(audio_path)

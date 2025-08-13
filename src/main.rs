@@ -1,8 +1,6 @@
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
-use chrono::Local;
-use hound::{WavSpec, WavWriter};
 use rdev::{listen, Event, EventType, Key};
 use std::sync::mpsc::{channel, Sender};
 use lazy_static::lazy_static;
@@ -175,17 +173,20 @@ fn ensure_transcriber_for(
     }
 }
 
-// New helper to deduplicate transcription call
-fn transcribe_with(
+
+// New helper to transcribe directly from in-memory samples
+fn transcribe_samples_with(
     transcriber: &Arc<Mutex<Option<WhisperTranscriber>>>,
-    filename: &str,
+    samples: &[f32],
+    sample_rate: u32,
+    channels: u16,
     language: &str,
 ) -> Result<String, String> {
     let guard = transcriber
         .lock()
         .map_err(|_| "Failed to lock transcriber".to_string())?;
     if let Some(ref t) = *guard {
-        t.transcribe_audio(filename, Some(language))
+        t.transcribe_samples(samples, sample_rate, channels, Some(language))
             .map_err(|e| format!("Failed to transcribe audio: {}", e))
     } else {
         Err("Transcriber is not available".to_string())
@@ -335,51 +336,41 @@ fn main() {
                             crate::tray_icon::tray_icon_set_state("blue");
                         }
 
-                        // Create a temporary WAV file in memory for transcription
-                        let timestamp = Local::now().format("%Y%m%d_%H%M%S").to_string();
-                        let filename = format!("temp_voice_{}.wav", timestamp);
-
                         // Get the recorded samples
                         let samples = recorded_samples.lock().unwrap().clone();
 
                         if !samples.is_empty() {
                             println!("Processing recording for transcription");
 
-                            // Create a WAV file in memory for transcription
-                            let spec = WavSpec {
-                                channels: stream.get_channels(),
-                                sample_rate: stream.get_sample_rate(),
-                                bits_per_sample: 32,
-                                sample_format: hound::SampleFormat::Float,
-                            };
-
-                            let mut writer = WavWriter::create(&filename, spec)
-                                .expect("Failed to create temporary WAV file");
-
-                            // Write the samples to the WAV file
-                            for &sample in &samples {
-                                writer.write_sample(sample).expect("Failed to write sample");
-                            }
-
-                            writer.finalize().expect("Failed to finalize temporary WAV file");
-
-                            println!("Recording processed successfully");
-
                             // Use the local language variable
                             println!("Using language code for transcription: {}", current_language);
                             let is_english = current_language.starts_with("en");
 
                             let result = if is_english {
-                                transcribe_with(&english_transcriber, &filename, &current_language)
+                                transcribe_samples_with(
+                                    &english_transcriber,
+                                    &samples,
+                                    stream.get_sample_rate(),
+                                    stream.get_channels(),
+                                    &current_language,
+                                )
                             } else {
-                                transcribe_with(&multilingual_transcriber, &filename, &current_language)
+                                transcribe_samples_with(
+                                    &multilingual_transcriber,
+                                    &samples,
+                                    stream.get_sample_rate(),
+                                    stream.get_channels(),
+                                    &current_language,
+                                )
                             };
 
                             match result {
                                 Ok(transcript) => {
                                     println!("Transcription successful");
-                                    println!("Transcript preview: {}", 
-                                             transcript.lines().take(2).collect::<Vec<_>>().join(" "));
+                                    println!(
+                                        "Transcript preview: {}",
+                                        transcript.lines().take(2).collect::<Vec<_>>().join(" ")
+                                    );
 
                                     // Insert the transcript at the current cursor position in a separate thread to avoid blocking
                                     std::thread::spawn(move || {
@@ -391,13 +382,6 @@ fn main() {
                                     eprintln!("{}", e);
                                 }
                             }
-                        }
-
-                        // Delete the temporary WAV file
-                        if let Err(e) = std::fs::remove_file(&filename) {
-                            eprintln!("Warning: Failed to delete temporary file {}: {}", filename, e);
-                        } else {
-                            println!("Temporary file {} deleted", filename);
                         }
 
                         // Back to ready: white
