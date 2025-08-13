@@ -13,123 +13,19 @@ mod clipboard_inserter;
 mod config;
 mod single_instance;
 mod hotkeys;
+mod transcriber_utils;
 
 use audio_stream::AudioStream;
 use whisper::WhisperTranscriber;
 use keyboard_layout::KeyboardLayoutDetector;
 use hotkeys::{KeyboardEvent, KEYBOARD_EVENT_SENDER, handle_keyboard_event};
+use transcriber_utils::{select_model_file, ensure_transcriber_for, transcribe_samples_with, download_base_models};
 
 lazy_static! {
     static ref SELECTED_MODEL: Mutex<String> = Mutex::new(config::get_selected_model());
     static ref MODEL_LOADING: Mutex<bool> = Mutex::new(false);
 }
 
-// Helpers for model selection and transcriber initialization
-fn select_model_file(selected_model: &str, is_english: bool) -> String {
-    match (selected_model, is_english) {
-        ("large", true) => "ggml-large-v2.bin".to_string(),
-        ("large", false) => "ggml-large-v2.bin".to_string(),
-        (m @ ("base" | "small" | "medium"), true) => format!("ggml-{m}.en.bin"),
-        (m @ ("base" | "small" | "medium"), false) => format!("ggml-{m}.bin"),
-        // Fallbacks to base variants
-        (_, true) => "ggml-base.en.bin".to_string(),
-        (_, false) => "ggml-base.bin".to_string(),
-    }
-}
-
-fn ensure_transcriber_for(
-    is_english: bool,
-    model_file: &str,
-    english_transcriber: &Arc<Mutex<Option<WhisperTranscriber>>>,
-    multilingual_transcriber: &Arc<Mutex<Option<WhisperTranscriber>>>,
-) {
-    // If the selected model is missing, fall back to base automatically
-    let resolved_model = if config::get_model_path(model_file).is_some() {
-        model_file.to_string()
-    } else {
-        if is_english {
-            "ggml-base.en.bin".to_string()
-        } else {
-            "ggml-base.bin".to_string()
-        }
-    };
-
-    if is_english {
-        let mut guard = english_transcriber.lock().unwrap();
-        if guard.is_none() {
-            println!("Initializing English transcriber with model: {}", resolved_model);
-            match WhisperTranscriber::new(&resolved_model) {
-                Ok(t) => *guard = Some(t),
-                Err(e) => {
-                    eprintln!(
-                        "Failed to initialize English WhisperTranscriber with model {}: {}",
-                        resolved_model, e
-                    );
-                    eprintln!("English transcription will be disabled");
-                }
-            }
-        }
-    } else {
-        let mut guard = multilingual_transcriber.lock().unwrap();
-        if guard.is_none() {
-            println!("Initializing multilingual transcriber with model: {}", resolved_model);
-            match WhisperTranscriber::new(&resolved_model) {
-                Ok(t) => *guard = Some(t),
-                Err(e) => {
-                    eprintln!(
-                        "Failed to initialize Multilingual WhisperTranscriber with model {}: {}",
-                        resolved_model, e
-                    );
-                    eprintln!("Multilingual transcription will be disabled");
-                }
-            }
-        }
-    }
-}
-
-
-// New helper to transcribe directly from in-memory samples
-fn transcribe_samples_with(
-    transcriber: &Arc<Mutex<Option<WhisperTranscriber>>>,
-    samples: &[f32],
-    sample_rate: u32,
-    channels: u16,
-    language: &str,
-) -> Result<String, String> {
-    let guard = transcriber
-        .lock()
-        .map_err(|_| "Failed to lock transcriber".to_string())?;
-    if let Some(ref t) = *guard {
-        t.transcribe_samples(samples, sample_rate, channels, Some(language))
-            .map_err(|e| format!("Failed to transcribe audio: {}", e))
-    } else {
-        Err("Transcriber is not available".to_string())
-    }
-}
-
-/// Download base models during startup if they are missing
-fn download_base_models() {
-    let english_model = "ggml-base.en.bin";
-    let multilingual_model = "ggml-base.bin";
-
-    println!("Downloading base models...");
-
-    // Download English model if it doesn't exist
-    if config::get_model_path(english_model).is_none() {
-        println!("Downloading English model...");
-        if let Err(e) = WhisperTranscriber::download_model(english_model) {
-            eprintln!("Failed to download English model: {}", e);
-        }
-    }
-
-    // Download multilingual model if it doesn't exist
-    if config::get_model_path(multilingual_model).is_none() {
-        println!("Downloading multilingual model...");
-        if let Err(e) = WhisperTranscriber::download_model(multilingual_model) {
-            eprintln!("Failed to download multilingual model: {}", e);
-        }
-    }
-}
 
 fn main() {
     // keep the lock alive for the entire program
