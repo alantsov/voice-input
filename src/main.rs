@@ -112,6 +112,69 @@ fn handle_keyboard_event(event: Event) {
     }
 }
 
+// Helpers for model selection and transcriber initialization
+fn select_model_file(selected_model: &str, is_english: bool) -> String {
+    match (selected_model, is_english) {
+        ("large", true) => "ggml-large-v2.bin".to_string(),
+        ("large", false) => "ggml-large-v2.bin".to_string(),
+        (m @ ("base" | "small" | "medium"), true) => format!("ggml-{m}.en.bin"),
+        (m @ ("base" | "small" | "medium"), false) => format!("ggml-{m}.bin"),
+        // Fallbacks to base variants
+        (_, true) => "ggml-base.en.bin".to_string(),
+        (_, false) => "ggml-base.bin".to_string(),
+    }
+}
+
+fn ensure_transcriber_for(
+    is_english: bool,
+    model_file: &str,
+    english_transcriber: &Arc<Mutex<Option<WhisperTranscriber>>>,
+    multilingual_transcriber: &Arc<Mutex<Option<WhisperTranscriber>>>,
+) {
+    // If the selected model is missing, fall back to base automatically
+    let resolved_model = if config::get_model_path(model_file).is_some() {
+        model_file.to_string()
+    } else {
+        if is_english {
+            "ggml-base.en.bin".to_string()
+        } else {
+            "ggml-base.bin".to_string()
+        }
+    };
+
+    if is_english {
+        let mut guard = english_transcriber.lock().unwrap();
+        if guard.is_none() {
+            println!("Initializing English transcriber with model: {}", resolved_model);
+            match WhisperTranscriber::new(&resolved_model) {
+                Ok(t) => *guard = Some(t),
+                Err(e) => {
+                    eprintln!(
+                        "Failed to initialize English WhisperTranscriber with model {}: {}",
+                        resolved_model, e
+                    );
+                    eprintln!("English transcription will be disabled");
+                }
+            }
+        }
+    } else {
+        let mut guard = multilingual_transcriber.lock().unwrap();
+        if guard.is_none() {
+            println!("Initializing multilingual transcriber with model: {}", resolved_model);
+            match WhisperTranscriber::new(&resolved_model) {
+                Ok(t) => *guard = Some(t),
+                Err(e) => {
+                    eprintln!(
+                        "Failed to initialize Multilingual WhisperTranscriber with model {}: {}",
+                        resolved_model, e
+                    );
+                    eprintln!("Multilingual transcription will be disabled");
+                }
+            }
+        }
+    }
+}
+
 fn main() {
     // Ensure single instance and keep the lock alive for the entire program
     let _instance_lock = ensure_single_instance();
@@ -217,80 +280,17 @@ fn main() {
                         // Initialize Whisper after starting recording
                         let is_english = language_code.starts_with("en");
 
-                        // Get the selected model
+                        // Get the selected model and resolve the model file
                         let selected_model = SELECTED_MODEL.lock().unwrap().clone();
+                        let model_file = select_model_file(&selected_model, is_english);
 
-                        // Determine the model file based on the selected model and language
-                        let english_model = "ggml-base.en.bin";
-                        let multilingual_model = "ggml-base.bin";
-                        let model_file = if is_english {
-                            match selected_model.as_str() {
-                                "base" | "small" | "medium" => format!("ggml-{}.en.bin", selected_model),
-                                "large" => format!("ggml-{}-v2.bin", selected_model),
-                                _ => english_model.to_string()
-                            }
-                        } else {
-                            match selected_model.as_str() {
-                                "base" | "small" | "medium" => format!("ggml-{}.bin", selected_model),
-                                "large" => format!("ggml-{}-v2.bin", selected_model),
-                                _ => multilingual_model.to_string()
-                            }
-                        };
-
-                        // Check if the model file exists in XDG data directory or current directory
-                        if config::get_model_path(&model_file).is_none() {
-                            println!("Model file {} does not exist. Using base model instead.", model_file);
-
-                            // Use base model as fallback
-                            if is_english {
-                                let mut english_guard = english_transcriber.lock().unwrap();
-                                if english_guard.is_none() {
-                                    println!("Initializing English transcriber after starting recording");
-                                    match WhisperTranscriber::new(english_model) {
-                                        Ok(t) => *english_guard = Some(t),
-                                        Err(e) => {
-                                            eprintln!("Failed to initialize English WhisperTranscriber: {}", e);
-                                            eprintln!("English transcription will be disabled");
-                                        }
-                                    }
-                                }
-                            } else {
-                                let mut multilingual_guard = multilingual_transcriber.lock().unwrap();
-                                if multilingual_guard.is_none() {
-                                    println!("Initializing multilingual transcriber after starting recording");
-                                    match WhisperTranscriber::new(multilingual_model) {
-                                        Ok(t) => *multilingual_guard = Some(t),
-                                        Err(e) => {
-                                            eprintln!("Failed to initialize Multilingual WhisperTranscriber: {}", e);
-                                            eprintln!("Multilingual transcription will be disabled");
-                                        }
-                                    }
-                                }
-                            }
-                        } else {
-                            // Use the selected model
-                            if is_english {
-                                let mut english_guard = english_transcriber.lock().unwrap();
-                                println!("Initializing English transcriber with model: {}", model_file);
-                                match WhisperTranscriber::new(&model_file) {
-                                    Ok(t) => *english_guard = Some(t),
-                                    Err(e) => {
-                                        eprintln!("Failed to initialize English WhisperTranscriber with model {}: {}", model_file, e);
-                                        eprintln!("English transcription will be disabled");
-                                    }
-                                }
-                            } else {
-                                let mut multilingual_guard = multilingual_transcriber.lock().unwrap();
-                                println!("Initializing multilingual transcriber with model: {}", model_file);
-                                match WhisperTranscriber::new(&model_file) {
-                                    Ok(t) => *multilingual_guard = Some(t),
-                                    Err(e) => {
-                                        eprintln!("Failed to initialize Multilingual WhisperTranscriber with model {}: {}", model_file, e);
-                                        eprintln!("Multilingual transcription will be disabled");
-                                    }
-                                }
-                            }
-                        }
+                        // Ensure the appropriate transcriber is initialized (with fallback)
+                        ensure_transcriber_for(
+                            is_english,
+                            &model_file,
+                            &english_transcriber,
+                            &multilingual_transcriber,
+                        );
                     }
                 },
                 KeyboardEvent::CtrlCapsLockReleased => {
