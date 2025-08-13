@@ -361,9 +361,11 @@ fn main() {
                                             println!("Transcript preview: {}", 
                                                      transcript.lines().take(2).collect::<Vec<_>>().join(" "));
 
-                                            // Insert the transcript at the current cursor position
-                                            clipboard_inserter::insert_text(&transcript);
-                                            println!("Transcript inserted at cursor position");
+                                            // Insert the transcript at the current cursor position in a separate thread to avoid blocking
+                                            std::thread::spawn(move || {
+                                                clipboard_inserter::insert_text(&transcript);
+                                                println!("Transcript inserted at cursor position");
+                                            });
                                         },
                                         Err(e) => {
                                             eprintln!("Failed to transcribe audio: {}", e);
@@ -381,9 +383,11 @@ fn main() {
                                             println!("Transcript preview: {}", 
                                                      transcript.lines().take(2).collect::<Vec<_>>().join(" "));
 
-                                            // Insert the transcript at the current cursor position
-                                            clipboard_inserter::insert_text(&transcript);
-                                            println!("Transcript inserted at cursor position");
+                                            // Insert the transcript at the current cursor position in a separate thread to avoid blocking
+                                            std::thread::spawn(move || {
+                                                clipboard_inserter::insert_text(&transcript);
+                                                println!("Transcript inserted at cursor position");
+                                            });
                                         },
                                         Err(e) => {
                                             eprintln!("Failed to transcribe audio: {}", e);
