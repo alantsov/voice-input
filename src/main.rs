@@ -249,7 +249,6 @@ fn main() {
 
                             // Use base model as fallback
                             if is_english {
-                                // Initialize English transcriber if not already initialized
                                 let mut english_guard = english_transcriber.lock().unwrap();
                                 if english_guard.is_none() {
                                     println!("Initializing English transcriber after starting recording");
@@ -262,7 +261,6 @@ fn main() {
                                     }
                                 }
                             } else {
-                                // Initialize multilingual transcriber if not already initialized
                                 let mut multilingual_guard = multilingual_transcriber.lock().unwrap();
                                 if multilingual_guard.is_none() {
                                     println!("Initializing multilingual transcriber after starting recording");
@@ -278,7 +276,6 @@ fn main() {
                         } else {
                             // Use the selected model
                             if is_english {
-                                // Initialize English transcriber with the selected model
                                 let mut english_guard = english_transcriber.lock().unwrap();
                                 println!("Initializing English transcriber with model: {}", model_file);
                                 match WhisperTranscriber::new(&model_file) {
@@ -289,7 +286,6 @@ fn main() {
                                     }
                                 }
                             } else {
-                                // Initialize multilingual transcriber with the selected model
                                 let mut multilingual_guard = multilingual_transcriber.lock().unwrap();
                                 println!("Initializing multilingual transcriber with model: {}", model_file);
                                 match WhisperTranscriber::new(&model_file) {
@@ -300,12 +296,6 @@ fn main() {
                                     }
                                 }
                             }
-                        }
-
-                        // Generate some dummy data for demonstration
-                        let mut samples = recorded_samples.lock().unwrap();
-                        for i in 0..1000 {
-                            samples.push(0.1 * (i as f32 % 10.0));
                         }
                     }
                 },
