@@ -14,11 +14,6 @@ use std::process;
 use fs2::FileExt;
 use directories::ProjectDirs;
 
-// Thread-local storage for the current language code
-thread_local! {
-    static CURRENT_LANGUAGE: RefCell<String> = RefCell::new(String::from("en"));
-}
-
 mod tray_icon;
 mod audio_stream;
 mod whisper;
@@ -124,10 +119,12 @@ fn main() {
     println!("Voice Input Application");
     println!("Press Ctrl+CAPSLOCK to start recording, release to save and insert transcript at cursor position");
 
-    // Initialize the system tray icon if the feature is enabled
     if let Err(e) = tray_icon::init_tray_icon() {
         eprintln!("Failed to initialize tray icon: {}", e);
     }
+
+    // Track the language for the current recording session locally (no thread_local needed)
+    let mut current_language = String::from("en");
 
     // Only download base models during startup
     let english_model = "ggml-base.en.bin";
@@ -190,10 +187,8 @@ fn main() {
                         println!("Ctrl+CAPSLOCK pressed - Recording started");
                         f12_pressed = true;
 
-                        // Detect keyboard layout language on keydown
-                        let keyboard_language = KeyboardLayoutDetector::detect_language().unwrap_or_else(|_| String::from("en"));
-
-                        // Extract language code from keyboard layout (first 2 characters)
+                        let keyboard_language =
+                            KeyboardLayoutDetector::detect_language().unwrap_or_else(|_| String::from("en"));
                         let language_code = if keyboard_language.len() >= 2 {
                             keyboard_language[0..2].to_string()
                         } else {
@@ -201,10 +196,8 @@ fn main() {
                         };
                         println!("Detected language code: {}", language_code);
 
-                        // Store the language code for later use
-                        CURRENT_LANGUAGE.with(|lang| {
-                            *lang.borrow_mut() = language_code.clone();
-                        });
+                        // Store directly in local variable
+                        current_language = language_code.clone();
 
                         // Clear previous recording and start new one
                         {
@@ -348,19 +341,13 @@ fn main() {
 
                             println!("Recording processed successfully");
 
-                            // Get the current language code
-                            let current_language = CURRENT_LANGUAGE.with(|lang| lang.borrow().clone());
+                            // Use the local language variable
                             println!("Using language code for transcription: {}", current_language);
-
-                            // Determine which transcriber to use based on language
                             let is_english = current_language.starts_with("en");
 
                             if is_english {
-                                // Use English transcriber
                                 let english_guard = english_transcriber.lock().unwrap();
                                 if let Some(ref t) = *english_guard {
-                                    println!("Using English transcriber");
-
                                     match t.transcribe_audio(&filename, Some(&current_language)) {
                                         Ok(transcript) => {
                                             println!("Transcription successful");
@@ -380,11 +367,8 @@ fn main() {
                                     eprintln!("English transcriber is not available");
                                 }
                             } else {
-                                // Use multilingual transcriber
                                 let multilingual_guard = multilingual_transcriber.lock().unwrap();
                                 if let Some(ref t) = *multilingual_guard {
-                                    println!("Using multilingual transcriber");
-
                                     match t.transcribe_audio(&filename, Some(&current_language)) {
                                         Ok(transcript) => {
                                             println!("Transcription successful");
