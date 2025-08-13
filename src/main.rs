@@ -175,17 +175,17 @@ fn main() {
 
     println!("Waiting for Ctrl+CAPSLOCK key combination (works even when app is not in focus)...");
 
-    let mut f12_pressed = false;
-
     // Main loop to process events
     loop {
         // Check for keyboard events
         if let Ok(event) = receiver.try_recv() {
             match event {
                 KeyboardEvent::CtrlCapsLockPressed => {
-                    if !f12_pressed {
+                    // Use the existing recording flag to guard "start" logic
+                    let mut rec = recording.lock().unwrap();
+                    if !*rec {
                         println!("Ctrl+CAPSLOCK pressed - Recording started");
-                        f12_pressed = true;
+                        *rec = true;
 
                         let keyboard_language =
                             KeyboardLayoutDetector::detect_language().unwrap_or_else(|_| String::from("en"));
@@ -203,7 +203,6 @@ fn main() {
                         {
                             let mut samples = recorded_samples.lock().unwrap();
                             samples.clear();
-                            *recording.lock().unwrap() = true;
                         }
 
                         // Resume the stream to start recording
@@ -222,6 +221,8 @@ fn main() {
                         let selected_model = SELECTED_MODEL.lock().unwrap().clone();
 
                         // Determine the model file based on the selected model and language
+                        let english_model = "ggml-base.en.bin";
+                        let multilingual_model = "ggml-base.bin";
                         let model_file = if is_english {
                             match selected_model.as_str() {
                                 "base" | "small" | "medium" => format!("ggml-{}.en.bin", selected_model),
@@ -293,14 +294,18 @@ fn main() {
                     }
                 },
                 KeyboardEvent::CtrlCapsLockReleased => {
-                    if f12_pressed {
-                        println!("Ctrl+CAPSLOCK released - Recording stopped, transcribing and inserting at cursor position");
-                        f12_pressed = false;
-
-                        // Stop recording
-                        {
-                            *recording.lock().unwrap() = false;
+                    // Only process "stop/transcribe" if we were recording
+                    let was_recording = {
+                        let mut rec = recording.lock().unwrap();
+                        let prev = *rec;
+                        if prev {
+                            *rec = false;
                         }
+                        prev
+                    };
+
+                    if was_recording {
+                        println!("Ctrl+CAPSLOCK released - Recording stopped, transcribing and inserting at cursor position");
 
                         // Pause the stream
                         stream.pause().expect("Failed to pause the stream");
@@ -355,7 +360,6 @@ fn main() {
                                                      transcript.lines().take(2).collect::<Vec<_>>().join(" "));
 
                                             // Insert the transcript at the current cursor position
-                                            //keyboard_simulator::simulate_typing(&transcript);
                                             clipboard_inserter::insert_text(&transcript);
                                             println!("Transcript inserted at cursor position");
                                         },
@@ -376,7 +380,6 @@ fn main() {
                                                      transcript.lines().take(2).collect::<Vec<_>>().join(" "));
 
                                             // Insert the transcript at the current cursor position
-                                            //keyboard_simulator::simulate_typing(&transcript);
                                             clipboard_inserter::insert_text(&transcript);
                                             println!("Transcript inserted at cursor position");
                                         },
@@ -388,26 +391,26 @@ fn main() {
                                     eprintln!("Multilingual transcriber is not available");
                                 }
                             }
+                        }
 
-                            // Delete the temporary WAV file
-                            if let Err(e) = std::fs::remove_file(&filename) {
-                                eprintln!("Warning: Failed to delete temporary file {}: {}", filename, e);
-                            } else {
-                                println!("Temporary file {} deleted", filename);
-                            }
-
-                            // Back to ready: white
-                            #[cfg(feature = "tray-icon")]
-                            {
-                                crate::tray_icon::tray_icon_set_state("white");
-                            }
+                        // Delete the temporary WAV file
+                        if let Err(e) = std::fs::remove_file(&filename) {
+                            eprintln!("Warning: Failed to delete temporary file {}: {}", filename, e);
                         } else {
-                            println!("No audio recorded");
-                            // Back to ready: white
-                            #[cfg(feature = "tray-icon")]
-                            {
-                                crate::tray_icon::tray_icon_set_state("white");
-                            }
+                            println!("Temporary file {} deleted", filename);
+                        }
+
+                        // Back to ready: white
+                        #[cfg(feature = "tray-icon")]
+                        {
+                            crate::tray_icon::tray_icon_set_state("white");
+                        }
+                    } else {
+                        println!("No audio recorded");
+                        // Back to ready: white
+                        #[cfg(feature = "tray-icon")]
+                        {
+                            crate::tray_icon::tray_icon_set_state("white");
                         }
                     }
                 }
