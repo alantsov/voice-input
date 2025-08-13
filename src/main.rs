@@ -175,21 +175,8 @@ fn ensure_transcriber_for(
     }
 }
 
-fn main() {
-    // Ensure single instance and keep the lock alive for the entire program
-    let _instance_lock = ensure_single_instance();
-
-    println!("Voice Input Application");
-    println!("Press Ctrl+CAPSLOCK to start recording, release to save and insert transcript at cursor position");
-
-    if let Err(e) = tray_icon::init_tray_icon() {
-        eprintln!("Failed to initialize tray icon: {}", e);
-    }
-
-    // Track the language for the current recording session locally (no thread_local needed)
-    let mut current_language = String::from("en");
-
-    // Only download base models during startup
+/// Download base models during startup if they are missing
+fn download_base_models() {
     let english_model = "ggml-base.en.bin";
     let multilingual_model = "ggml-base.bin";
 
@@ -210,6 +197,21 @@ fn main() {
             eprintln!("Failed to download multilingual model: {}", e);
         }
     }
+}
+
+fn main() {
+    // keep the lock alive for the entire program
+    let _instance_lock = ensure_single_instance();
+
+    if let Err(e) = tray_icon::init_tray_icon() {
+        eprintln!("Failed to initialize tray icon: {}", e);
+    }
+
+    let mut current_language = String::from("en");
+
+    download_base_models();
+    println!("Press Ctrl+CAPSLOCK to start recording, release to save and insert transcript at cursor position");
+
 
     // We'll initialize the transcribers on keydown instead of at startup
     let english_transcriber = Arc::new(Mutex::new(None));
