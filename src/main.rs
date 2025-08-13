@@ -19,7 +19,6 @@ thread_local! {
     static CURRENT_LANGUAGE: RefCell<String> = RefCell::new(String::from("en"));
 }
 
-
 mod tray_icon;
 mod audio_stream;
 mod whisper;
@@ -31,6 +30,46 @@ use audio_stream::AudioStream;
 use whisper::WhisperTranscriber;
 use keyboard_layout::KeyboardLayoutDetector;
 
+/// Ensure only a single instance of the app is running by creating and locking a file.
+/// Returns the opened lock file, which must be kept in scope for the duration of the program.
+fn ensure_single_instance() -> File {
+    // Implement single instance check
+    let lock_file = if let Some(proj_dirs) = ProjectDirs::from("com", "voice-input", "voice-input") {
+        let cache_dir = proj_dirs.cache_dir();
+        std::fs::create_dir_all(cache_dir).unwrap_or_else(|e| {
+            eprintln!("Failed to create cache directory: {}", e);
+            process::exit(1);
+        });
+        let lock_path = cache_dir.join("voice-input.lock");
+        match File::create(&lock_path) {
+            Ok(file) => file,
+            Err(e) => {
+                eprintln!("Failed to create lock file: {}", e);
+                process::exit(1);
+            }
+        }
+    } else {
+        // Fallback to temp directory if ProjectDirs fails
+        let lock_path = std::env::temp_dir().join("voice-input.lock");
+        match File::create(&lock_path) {
+            Ok(file) => file,
+            Err(e) => {
+                eprintln!("Failed to create lock file: {}", e);
+                process::exit(1);
+            }
+        }
+    };
+
+    // Try to acquire an exclusive lock
+    // The lock will be automatically released when the program exits
+    // or when the returned file goes out of scope
+    if let Err(_) = lock_file.try_lock_exclusive() {
+        eprintln!("Another instance of Voice Input is already running.");
+        process::exit(0);
+    }
+
+    lock_file
+}
 
 /// Detect the current keyboard layout and return its language code
 // Define a type for keyboard events we're interested in
@@ -78,45 +117,9 @@ fn handle_keyboard_event(event: Event) {
     }
 }
 
-
 fn main() {
-    // Implement single instance check
-    let lock_file = if let Some(proj_dirs) = ProjectDirs::from("com", "voice-input", "voice-input") {
-        let cache_dir = proj_dirs.cache_dir();
-        std::fs::create_dir_all(cache_dir).unwrap_or_else(|e| {
-            eprintln!("Failed to create cache directory: {}", e);
-            process::exit(1);
-        });
-        let lock_path = cache_dir.join("voice-input.lock");
-        match File::create(&lock_path) {
-            Ok(file) => file,
-            Err(e) => {
-                eprintln!("Failed to create lock file: {}", e);
-                process::exit(1);
-            }
-        }
-    } else {
-        // Fallback to temp directory if ProjectDirs fails
-        let lock_path = std::env::temp_dir().join("voice-input.lock");
-        match File::create(&lock_path) {
-            Ok(file) => file,
-            Err(e) => {
-                eprintln!("Failed to create lock file: {}", e);
-                process::exit(1);
-            }
-        }
-    };
-
-    // Try to acquire an exclusive lock
-    // The lock will be automatically released when the program exits
-    // or when the lock_file variable goes out of scope
-    if let Err(_) = lock_file.try_lock_exclusive() {
-        eprintln!("Another instance of Voice Input is already running.");
-        process::exit(0);
-    }
-
-    // Keep the lock_file variable in scope for the entire program
-    // This ensures the lock is held until the program exits
+    // Ensure single instance and keep the lock alive for the entire program
+    let _instance_lock = ensure_single_instance();
 
     println!("Voice Input Application");
     println!("Press Ctrl+CAPSLOCK to start recording, release to save and insert transcript at cursor position");
