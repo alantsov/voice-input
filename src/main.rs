@@ -1,8 +1,8 @@
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
-use rdev::{listen, Event, EventType, Key};
-use std::sync::mpsc::{channel, Sender};
+use rdev::listen;
+use std::sync::mpsc::channel;
 use lazy_static::lazy_static;
 use fs2::FileExt;
 mod tray_icon;
@@ -12,55 +12,16 @@ mod keyboard_layout;
 mod clipboard_inserter;
 mod config;
 mod single_instance;
+mod hotkeys;
 
 use audio_stream::AudioStream;
 use whisper::WhisperTranscriber;
 use keyboard_layout::KeyboardLayoutDetector;
+use hotkeys::{KeyboardEvent, KEYBOARD_EVENT_SENDER, handle_keyboard_event};
 
-/// Detect the current keyboard layout and return its language code
-// Define a type for keyboard events we're interested in
-enum KeyboardEvent {
-    CtrlCapsLockPressed,
-    CtrlCapsLockReleased,
-}
-
-// Global channel for keyboard events and model selection
 lazy_static! {
-    static ref KEYBOARD_EVENT_SENDER: Mutex<Option<Sender<KeyboardEvent>>> = Mutex::new(None);
     static ref SELECTED_MODEL: Mutex<String> = Mutex::new(config::get_selected_model());
     static ref MODEL_LOADING: Mutex<bool> = Mutex::new(false);
-    static ref CTRL_PRESSED: Mutex<bool> = Mutex::new(false);
-}
-
-// Function to handle keyboard events globally
-fn handle_keyboard_event(event: Event) {
-    // We're interested in Ctrl+CAPSLOCK key combination
-    match event.event_type {
-        EventType::KeyPress(Key::ControlLeft) | EventType::KeyPress(Key::ControlRight) => {
-            *CTRL_PRESSED.lock().unwrap() = true;
-        },
-        EventType::KeyRelease(Key::ControlLeft) | EventType::KeyRelease(Key::ControlRight) => {
-            *CTRL_PRESSED.lock().unwrap() = false;
-            // Send CtrlCapsLockReleased event when Ctrl is released
-            if let Some(sender) = &*KEYBOARD_EVENT_SENDER.lock().unwrap() {
-                let _ = sender.send(KeyboardEvent::CtrlCapsLockReleased);
-            }
-        },
-        EventType::KeyPress(Key::CapsLock) => {
-            if *CTRL_PRESSED.lock().unwrap() {
-                if let Some(sender) = &*KEYBOARD_EVENT_SENDER.lock().unwrap() {
-                    let _ = sender.send(KeyboardEvent::CtrlCapsLockPressed);
-                }
-            }
-        },
-        EventType::KeyRelease(Key::CapsLock) => {
-            // Send CtrlCapsLockReleased event when CAPSLOCK is released, regardless of Ctrl state
-            if let Some(sender) = &*KEYBOARD_EVENT_SENDER.lock().unwrap() {
-                let _ = sender.send(KeyboardEvent::CtrlCapsLockReleased);
-            }
-        },
-        _ => {}
-    }
 }
 
 // Helpers for model selection and transcriber initialization
