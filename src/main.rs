@@ -43,17 +43,15 @@ fn main() {
 
     // Buffer to store recorded samples
     let recorded_samples = Arc::new(Mutex::new(Vec::new()));
-    let recording = Arc::new(Mutex::new(false));
 
-    // Create an audio stream for microphone recording
-    let stream = AudioStream::new(recorded_samples.clone(), recording.clone())
+    // Create an audio stream for microphone recording (owns internal capture gate)
+    let stream = AudioStream::new(recorded_samples.clone())
         .expect("Failed to create audio stream");
 
-    // Create the application instance
+    // Create the application instance (status-driven, no external recording flag)
     let mut app = app::App::new(
         stream,
         recorded_samples,
-        recording,
         english_transcriber,
         multilingual_transcriber,
     );

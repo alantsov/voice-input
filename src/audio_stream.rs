@@ -1,4 +1,5 @@
 use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::SampleFormat;
 
@@ -6,20 +7,31 @@ use cpal::SampleFormat;
 pub struct AudioStream {
     stream: Option<cpal::Stream>,
     samples: Arc<Mutex<Vec<f32>>>,
-    recording: Arc<Mutex<bool>>,
+    // Owned, internal capture gate
+    recording: Arc<AtomicBool>,
     sample_rate: u32,
     channels: u16,
 }
 
 impl AudioStream {
-    pub fn new(samples: Arc<Mutex<Vec<f32>>>, recording: Arc<Mutex<bool>>) -> Result<Self, String> {
+    pub fn new(samples: Arc<Mutex<Vec<f32>>>) -> Result<Self, String> {
         Ok(AudioStream {
             stream: None,
             samples,
-            recording,
+            recording: Arc::new(AtomicBool::new(false)),
             sample_rate: 44100, // Default value, will be updated when stream is created
             channels: 1,        // Default value, will be updated when stream is created
         })
+    }
+
+    // Enable capture into samples buffer
+    pub fn start_capture(&self) {
+        self.recording.store(true, Ordering::Release);
+    }
+
+    // Disable capture into samples buffer
+    pub fn stop_capture(&self) {
+        self.recording.store(false, Ordering::Release);
     }
 
     pub fn play(&mut self) -> Result<(), String> {
@@ -53,7 +65,7 @@ impl AudioStream {
             SampleFormat::F32 => device.build_input_stream(
                 &config.into(),
                 move |data: &[f32], _: &cpal::InputCallbackInfo| {
-                    if *recording.lock().unwrap() {
+                    if recording.load(Ordering::Acquire) {
                         let mut samples_lock = samples.lock().unwrap();
                         samples_lock.extend_from_slice(data);
                     }
@@ -64,7 +76,7 @@ impl AudioStream {
             SampleFormat::I16 => device.build_input_stream(
                 &config.into(),
                 move |data: &[i16], _: &cpal::InputCallbackInfo| {
-                    if *recording.lock().unwrap() {
+                    if recording.load(Ordering::Acquire) {
                         let mut samples_lock = samples.lock().unwrap();
                         samples_lock.extend(data.iter().map(|&s| s as f32 / 32768.0));
                     }
@@ -75,7 +87,7 @@ impl AudioStream {
             SampleFormat::U16 => device.build_input_stream(
                 &config.into(),
                 move |data: &[u16], _: &cpal::InputCallbackInfo| {
-                    if *recording.lock().unwrap() {
+                    if recording.load(Ordering::Acquire) {
                         let mut samples_lock = samples.lock().unwrap();
                         samples_lock.extend(data.iter().map(|&s| (s as f32 / 65535.0) * 2.0 - 1.0));
                     }

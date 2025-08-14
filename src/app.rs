@@ -36,13 +36,21 @@ fn set_tray(state: TrayState) {
     }
 }
 
+// Public, app-wide status for logic/UI
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AppStatus {
+    Ready,
+    Recording,
+    Processing,
+}
+
 // Centralized app state for the event loop
 struct AppState {
+    status: AppStatus,
     current_language: String,
     english_transcriber: Arc<Mutex<Option<WhisperTranscriber>>>,
     multilingual_transcriber: Arc<Mutex<Option<WhisperTranscriber>>>,
     recorded_samples: Arc<Mutex<Vec<f32>>>,
-    recording: Arc<Mutex<bool>>,
     stream: AudioStream,
 }
 
@@ -63,30 +71,29 @@ impl App {
     pub fn new(
         stream: AudioStream,
         recorded_samples: Arc<Mutex<Vec<f32>>>,
-        recording: Arc<Mutex<bool>>,
         english_transcriber: Arc<Mutex<Option<WhisperTranscriber>>>,
         multilingual_transcriber: Arc<Mutex<Option<WhisperTranscriber>>>,
     ) -> Self {
         Self {
             state: AppState {
+                status: AppStatus::Ready,
                 current_language: String::from("en"),
                 english_transcriber,
                 multilingual_transcriber,
                 recorded_samples,
-                recording,
                 stream,
             },
         }
     }
 
     fn start_recording(&mut self) {
-        // Guard "start" logic with the recording flag
-        let mut rec = self.state.recording.lock().unwrap();
-        if *rec {
+        // Guard with status (single-source-of-truth for app logic/UI)
+        if self.state.status != AppStatus::Ready {
             return;
         }
+
         println!("Ctrl+CAPSLOCK pressed - Recording started");
-        *rec = true;
+        self.state.status = AppStatus::Recording;
 
         // Detect and store language code
         let language_code = detect_language_code();
@@ -99,8 +106,9 @@ impl App {
             samples.clear();
         }
 
-        // Start audio stream
+        // Start audio stream + enable capture
         self.state.stream.play().expect("Failed to start the stream");
+        self.state.stream.start_capture();
         set_tray(TrayState::Recording);
 
         // Initialize Whisper after starting recording
@@ -121,27 +129,21 @@ impl App {
 
     fn stop_and_transcribe(&mut self) {
         // Only process "stop/transcribe" if we were recording
-        let was_recording = {
-            let mut rec = self.state.recording.lock().unwrap();
-            let prev = *rec;
-            if prev {
-                *rec = false;
-            }
-            prev
-        };
-
-        if !was_recording {
+        if self.state.status != AppStatus::Recording {
             println!("No audio recorded");
             set_tray(TrayState::Ready);
+            self.state.status = AppStatus::Ready;
             return;
         }
 
         println!("Ctrl+CAPSLOCK released - Recording stopped, transcribing and inserting at cursor position");
 
-        // Pause the stream
+        // Stop capture immediately, then pause stream
+        self.state.stream.stop_capture();
         self.state.stream.pause().expect("Failed to pause the stream");
 
-        // Update tray icon: processing/transcribing
+        // Update status and tray icon: processing/transcribing
+        self.state.status = AppStatus::Processing;
         set_tray(TrayState::Processing);
 
         // Get the recorded samples
@@ -188,7 +190,8 @@ impl App {
             }
         }
 
-        // Back to ready: white
+        // Back to ready
+        self.state.status = AppStatus::Ready;
         set_tray(TrayState::Ready);
     }
 
