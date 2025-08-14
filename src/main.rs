@@ -26,6 +26,162 @@ lazy_static! {
     static ref MODEL_LOADING: Mutex<bool> = Mutex::new(false);
 }
 
+// Semantic tray states instead of magic strings
+enum TrayState {
+    Ready,
+    Recording,
+    Processing,
+}
+
+impl TrayState {
+    fn icon_key(&self) -> &'static str {
+        match self {
+            TrayState::Ready => "white",
+            TrayState::Recording => "red",
+            TrayState::Processing => "blue",
+        }
+    }
+}
+
+// Thin wrapper to update tray icon by semantic state
+fn set_tray(state: TrayState) {
+    #[cfg(feature = "tray-icon")]
+    {
+        crate::tray_icon::tray_icon_set_state(state.icon_key());
+    }
+}
+
+// Centralized app state for the event loop
+struct AppState {
+    current_language: String,
+    english_transcriber: Arc<Mutex<Option<WhisperTranscriber>>>,
+    multilingual_transcriber: Arc<Mutex<Option<WhisperTranscriber>>>,
+    recorded_samples: Arc<Mutex<Vec<f32>>>,
+    recording: Arc<Mutex<bool>>,
+    stream: AudioStream,
+}
+
+fn detect_language_code() -> String {
+    let keyboard_language = KeyboardLayoutDetector::detect_language().unwrap_or_else(|_| String::from("en"));
+    if keyboard_language.len() >= 2 {
+        keyboard_language[0..2].to_string()
+    } else {
+        String::from("en")
+    }
+}
+
+fn start_recording(state: &mut AppState) {
+    // Guard "start" logic with the recording flag
+    let mut rec = state.recording.lock().unwrap();
+    if *rec {
+        return;
+    }
+    println!("Ctrl+CAPSLOCK pressed - Recording started");
+    *rec = true;
+
+    // Detect and store language code
+    let language_code = detect_language_code();
+    println!("Detected language code: {}", language_code);
+    state.current_language = language_code.clone();
+
+    // Clear previous recording
+    {
+        let mut samples = state.recorded_samples.lock().unwrap();
+        samples.clear();
+    }
+
+    // Start audio stream
+    state.stream.play().expect("Failed to start the stream");
+    set_tray(TrayState::Recording);
+
+    // Initialize Whisper after starting recording
+    let is_english = language_code.starts_with("en");
+
+    // Resolve the model file based on selected model and language
+    let selected_model = SELECTED_MODEL.lock().unwrap().clone();
+    let model_file = select_model_file(&selected_model, is_english);
+
+    // Ensure the appropriate transcriber is initialized (with fallback)
+    ensure_transcriber_for(
+        is_english,
+        &model_file,
+        &state.english_transcriber,
+        &state.multilingual_transcriber,
+    );
+}
+
+fn stop_and_transcribe(state: &mut AppState) {
+    // Only process "stop/transcribe" if we were recording
+    let was_recording = {
+        let mut rec = state.recording.lock().unwrap();
+        let prev = *rec;
+        if prev {
+            *rec = false;
+        }
+        prev
+    };
+
+    if !was_recording {
+        println!("No audio recorded");
+        set_tray(TrayState::Ready);
+        return;
+    }
+
+    println!("Ctrl+CAPSLOCK released - Recording stopped, transcribing and inserting at cursor position");
+
+    // Pause the stream
+    state.stream.pause().expect("Failed to pause the stream");
+
+    // Update tray icon: processing/transcribing
+    set_tray(TrayState::Processing);
+
+    // Get the recorded samples
+    let samples = state.recorded_samples.lock().unwrap().clone();
+
+    if !samples.is_empty() {
+        println!("Processing recording for transcription");
+
+        // Use stored language
+        println!("Using language code for transcription: {}", state.current_language);
+        let is_english = state.current_language.starts_with("en");
+
+        let transcriber = if is_english {
+            &state.english_transcriber
+        } else {
+            &state.multilingual_transcriber
+        };
+
+        let result = transcribe_samples_with(
+            transcriber,
+            &samples,
+            state.stream.get_sample_rate(),
+            state.stream.get_channels(),
+            &state.current_language,
+        );
+
+        match result {
+            Ok(transcript) => {
+                println!("Transcription successful");
+                println!(
+                    "Transcript preview: {}",
+                    transcript.lines().take(2).collect::<Vec<_>>().join(" ")
+                );
+
+                // Insert the transcript at the current cursor position in a separate thread to avoid blocking
+                std::thread::spawn(move || {
+                    clipboard_inserter::insert_text(&transcript);
+                    println!("Transcript inserted");
+                });
+            }
+            Err(e) => {
+                eprintln!("{}", e);
+            }
+        }
+    }
+
+    // Back to ready: white
+    set_tray(TrayState::Ready);
+}
 
 fn main() {
     // keep the lock alive for the entire program
@@ -35,13 +191,10 @@ fn main() {
         eprintln!("Failed to initialize tray icon: {}", e);
     }
 
-    let mut current_language = String::from("en");
-
     download_base_models();
     println!("Press Ctrl+CAPSLOCK to start recording, release to save and insert transcript at cursor position");
 
-
-    // We'll initialize the transcribers on keydown instead of at startup
+    // Initialize shared components
     let english_transcriber = Arc::new(Mutex::new(None));
     let multilingual_transcriber = Arc::new(Mutex::new(None));
 
@@ -50,8 +203,18 @@ fn main() {
     let recording = Arc::new(Mutex::new(false));
 
     // Create an audio stream for microphone recording
-    let mut stream = AudioStream::new(recorded_samples.clone(), recording.clone())
+    let stream = AudioStream::new(recorded_samples.clone(), recording.clone())
         .expect("Failed to create audio stream");
+
+    // App state
+    let mut app_state = AppState {
+        current_language: String::from("en"),
+        english_transcriber,
+        multilingual_transcriber,
+        recorded_samples,
+        recording,
+        stream,
+    };
 
     // Create a channel for keyboard events
     let (sender, receiver) = channel::<KeyboardEvent>();
@@ -74,139 +237,10 @@ fn main() {
         if let Ok(event) = receiver.try_recv() {
             match event {
                 KeyboardEvent::CtrlCapsLockPressed => {
-                    // Use the existing recording flag to guard "start" logic
-                    let mut rec = recording.lock().unwrap();
-                    if !*rec {
-                        println!("Ctrl+CAPSLOCK pressed - Recording started");
-                        *rec = true;
-
-                        let keyboard_language =
-                            KeyboardLayoutDetector::detect_language().unwrap_or_else(|_| String::from("en"));
-                        let language_code = if keyboard_language.len() >= 2 {
-                            keyboard_language[0..2].to_string()
-                        } else {
-                            String::from("en")
-                        };
-                        println!("Detected language code: {}", language_code);
-
-                        // Store directly in local variable
-                        current_language = language_code.clone();
-
-                        // Clear previous recording and start new one
-                        {
-                            let mut samples = recorded_samples.lock().unwrap();
-                            samples.clear();
-                        }
-
-                        // Resume the stream to start recording
-                        stream.play().expect("Failed to start the stream");
-
-                        // Update tray icon: recording (red)
-                        #[cfg(feature = "tray-icon")]
-                        {
-                            crate::tray_icon::tray_icon_set_state("red");
-                        }
-
-                        // Initialize Whisper after starting recording
-                        let is_english = language_code.starts_with("en");
-
-                        // Get the selected model and resolve the model file
-                        let selected_model = SELECTED_MODEL.lock().unwrap().clone();
-                        let model_file = select_model_file(&selected_model, is_english);
-
-                        // Ensure the appropriate transcriber is initialized (with fallback)
-                        ensure_transcriber_for(
-                            is_english,
-                            &model_file,
-                            &english_transcriber,
-                            &multilingual_transcriber,
-                        );
-                    }
-                },
+                    start_recording(&mut app_state);
+                }
                 KeyboardEvent::CtrlCapsLockReleased => {
-                    // Only process "stop/transcribe" if we were recording
-                    let was_recording = {
-                        let mut rec = recording.lock().unwrap();
-                        let prev = *rec;
-                        if prev {
-                            *rec = false;
-                        }
-                        prev
-                    };
-
-                    if was_recording {
-                        println!("Ctrl+CAPSLOCK released - Recording stopped, transcribing and inserting at cursor position");
-
-                        // Pause the stream
-                        stream.pause().expect("Failed to pause the stream");
-
-                        // Update tray icon: processing/transcribing (blue)
-                        #[cfg(feature = "tray-icon")]
-                        {
-                            crate::tray_icon::tray_icon_set_state("blue");
-                        }
-
-                        // Get the recorded samples
-                        let samples = recorded_samples.lock().unwrap().clone();
-
-                        if !samples.is_empty() {
-                            println!("Processing recording for transcription");
-
-                            // Use the local language variable
-                            println!("Using language code for transcription: {}", current_language);
-                            let is_english = current_language.starts_with("en");
-
-                            let result = if is_english {
-                                transcribe_samples_with(
-                                    &english_transcriber,
-                                    &samples,
-                                    stream.get_sample_rate(),
-                                    stream.get_channels(),
-                                    &current_language,
-                                )
-                            } else {
-                                transcribe_samples_with(
-                                    &multilingual_transcriber,
-                                    &samples,
-                                    stream.get_sample_rate(),
-                                    stream.get_channels(),
-                                    &current_language,
-                                )
-                            };
-
-                            match result {
-                                Ok(transcript) => {
-                                    println!("Transcription successful");
-                                    println!(
-                                        "Transcript preview: {}",
-                                        transcript.lines().take(2).collect::<Vec<_>>().join(" ")
-                                    );
-
-                                    // Insert the transcript at the current cursor position in a separate thread to avoid blocking
-                                    std::thread::spawn(move || {
-                                        clipboard_inserter::insert_text(&transcript);
-                                        println!("Transcript inserted");
-                                    });
-                                }
-                                Err(e) => {
-                                    eprintln!("{}", e);
-                                }
-                            }
-                        }
-
-                        // Back to ready: white
-                        #[cfg(feature = "tray-icon")]
-                        {
-                            crate::tray_icon::tray_icon_set_state("white");
-                        }
-                    } else {
-                        println!("No audio recorded");
-                        // Back to ready: white
-                        #[cfg(feature = "tray-icon")]
-                        {
-                            crate::tray_icon::tray_icon_set_state("white");
-                        }
-                    }
+                    stop_and_transcribe(&mut app_state);
                 }
             }
         }
