@@ -35,9 +35,10 @@ fn main() {
 
     // Get initial selected model from config for initial tray rendering
     let initial_model = config::get_selected_model();
+    let initial_translate = config::get_translate_enabled();
 
     // Initialize tray UI on the main thread
-    if let Err(e) = tray_ui::init_tray_icon(ui_intents_tx.clone(), initial_model.clone()) {
+    if let Err(e) = tray_ui::init_tray_icon(ui_intents_tx.clone(), initial_model.clone(), initial_translate) {
         eprintln!("Failed to initialize tray icon: {}", e);
     }
 

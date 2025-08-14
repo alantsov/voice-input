@@ -9,7 +9,7 @@ use crate::audio_stream::AudioStream;
 use crate::clipboard_inserter;
 use crate::hotkeys::KeyboardEvent;
 use crate::keyboard_layout::KeyboardLayoutDetector;
-use crate::transcriber_utils::{ensure_transcriber_for, select_model_file, transcribe_samples_with};
+use crate::transcriber_utils::{ensure_transcriber_for, select_model_file, transcribe_samples_with, translate_samples_with};
 use crate::whisper::WhisperTranscriber;
 use crate::config;
 
@@ -45,6 +45,7 @@ struct AppState {
     multilingual_transcriber: Arc<Mutex<Option<WhisperTranscriber>>>,
     recorded_samples: Arc<Mutex<Vec<f32>>>,
     stream: AudioStream,
+    translate_enabled: bool,
 }
 
 fn detect_language_code() -> String {
@@ -78,6 +79,7 @@ impl App {
                 multilingual_transcriber,
                 recorded_samples,
                 stream,
+                translate_enabled: config::get_translate_enabled(),
             },
         }
     }
@@ -170,13 +172,23 @@ impl App {
                 &self.state.multilingual_transcriber
             };
 
-            let result = transcribe_samples_with(
-                transcriber,
-                &samples,
-                self.state.stream.get_sample_rate(),
-                self.state.stream.get_channels(),
-                &self.state.current_language,
-            );
+            let result = if self.state.translate_enabled {
+                translate_samples_with(
+                    transcriber,
+                    &samples,
+                    self.state.stream.get_sample_rate(),
+                    self.state.stream.get_channels(),
+                    &self.state.current_language,
+                )
+            } else {
+                transcribe_samples_with(
+                    transcriber,
+                    &samples,
+                    self.state.stream.get_sample_rate(),
+                    self.state.stream.get_channels(),
+                    &self.state.current_language,
+                )
+            };
 
             match result {
                 Ok(transcript) => {
@@ -227,6 +239,16 @@ impl App {
 
                             // Ensure model is available (downloads if needed) and update progress map
                             self.ensure_model_async(model);
+                        }
+                    }
+                    UiIntent::ToggleTranslate(enabled) => {
+                        if self.state.translate_enabled != enabled {
+                            self.state.translate_enabled = enabled;
+                            if let Err(e) = config::save_translate_enabled(enabled) {
+                                eprintln!("Failed to save translate setting: {}", e);
+                            } else {
+                                println!("Translate setting set to {} and saved", enabled);
+                            }
                         }
                     }
                     UiIntent::QuitRequested => {

@@ -87,6 +87,26 @@ pub fn transcribe_samples_with(
     }
 }
 
+/// Translate in-memory audio samples to English using the provided transcriber reference.
+pub fn translate_samples_with(
+    transcriber: &Arc<Mutex<Option<WhisperTranscriber>>>,
+    samples: &[f32],
+    sample_rate: u32,
+    channels: u16,
+    language: &str,
+) -> Result<String, String> {
+    let guard = transcriber
+        .lock()
+        .map_err(|_| "Failed to lock transcriber".to_string())?;
+    if let Some(ref t) = *guard {
+        // language is not strictly necessary for translation; we pass it for symmetry but the method ignores it
+        t.translate_samples(samples, sample_rate, channels, Some(language))
+            .map_err(|e| format!("Failed to translate audio: {}", e))
+    } else {
+        Err("Transcriber is not available".to_string())
+    }
+}
+
 /// Download base models during startup if they are missing.
 pub fn download_base_models() {
     let english_model = "ggml-base.en.bin";

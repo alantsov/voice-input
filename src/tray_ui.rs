@@ -44,6 +44,7 @@ pub struct AppView {
 #[derive(Debug, Clone)]
 pub enum UiIntent {
     SelectModel(String),
+    ToggleTranslate(bool),
     QuitRequested,
 }
 
@@ -75,7 +76,7 @@ fn format_eta(secs: u64) -> String {
 }
 
 #[cfg(feature = "tray-icon")]
-pub fn init_tray_icon(intents_tx: Sender<UiIntent>, initial_model: String) -> Result<(), String> {
+pub fn init_tray_icon(intents_tx: Sender<UiIntent>, initial_model: String, initial_translate: bool) -> Result<(), String> {
     gtk::init().map_err(|e| format!("Failed to initialize GTK: {}", e))?;
 
     let indicator = Rc::new(RefCell::new(AppIndicator::new("voice_input", "indicator-messages")));
@@ -142,6 +143,17 @@ pub fn init_tray_icon(intents_tx: Sender<UiIntent>, initial_model: String) -> Re
 
     // Separator
     menu.append(&SeparatorMenuItem::new());
+
+    // Translate to English checkbox
+    let translate_item = CheckMenuItem::with_label("Translate to English");
+    translate_item.set_active(initial_translate);
+    {
+        let intents_tx_clone = intents_tx.clone();
+        translate_item.connect_toggled(move |item| {
+            let _ = intents_tx_clone.send(UiIntent::ToggleTranslate(item.is_active()));
+        });
+    }
+    menu.append(&translate_item);
 
     let about = MenuItem::with_label("About");
     about.connect_activate(|_| {
@@ -227,8 +239,8 @@ pub struct ModelProgress { pub percent: u8, pub eta_secs: u64 }
 pub struct AppView { pub active_model: String, pub status: TrayStatus, pub loading: std::collections::HashMap<String, ModelProgress> }
 #[cfg(not(feature = "tray-icon"))]
 #[derive(Debug, Clone)]
-pub enum UiIntent { SelectModel(String), QuitRequested }
+pub enum UiIntent { SelectModel(String), ToggleTranslate(bool), QuitRequested }
 #[cfg(not(feature = "tray-icon"))]
-pub fn init_tray_icon(_: std::sync::mpsc::Sender<UiIntent>, _: String) -> Result<(), String> { Ok(()) }
+pub fn init_tray_icon(_: std::sync::mpsc::Sender<UiIntent>, _: String, _: bool) -> Result<(), String> { Ok(()) }
 #[cfg(not(feature = "tray-icon"))]
 pub fn tray_post_view(_: AppView) {}

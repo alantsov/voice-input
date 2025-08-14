@@ -9,12 +9,17 @@ use std::io;
 pub struct Config {
     /// The selected model for transcription
     pub selected_model: String,
+
+    /// Whether to translate (to English) instead of transcribe
+    #[serde(default)]
+    pub translate: bool,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
             selected_model: "base".to_string(),
+            translate: false,
         }
     }
 }
@@ -114,6 +119,18 @@ pub fn save_selected_model(model: &str) -> io::Result<()> {
 /// Get the selected model
 pub fn get_selected_model() -> String {
     load_config().selected_model
+}
+
+/// Save just the translate flag
+pub fn save_translate_enabled(translate: bool) -> io::Result<()> {
+    let mut config = load_config();
+    config.translate = translate;
+    save_config(&config)
+}
+
+/// Get the translate flag
+pub fn get_translate_enabled() -> bool {
+    load_config().translate
 }
 
 /// Get the full path for a model file
