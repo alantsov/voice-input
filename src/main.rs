@@ -1,11 +1,11 @@
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
 use rdev::listen;
-use std::sync::mpsc::channel;
+use std::sync::mpsc::{channel, Sender};
 use lazy_static::lazy_static;
 use fs2::FileExt;
-mod tray_icon;
+
+mod tray_ui;
 mod audio_stream;
 mod whisper;
 mod keyboard_layout;
@@ -30,7 +30,14 @@ fn main() {
     // keep the lock alive for the entire program
     let _instance_lock = single_instance::ensure_single_instance();
 
-    if let Err(e) = tray_icon::init_tray_icon() {
+    // UI -> App intents channel
+    let (ui_intents_tx, ui_intents_rx) = channel::<tray_ui::UiIntent>();
+
+    // Get initial selected model from config for initial tray rendering
+    let initial_model = config::get_selected_model();
+
+    // Initialize tray UI on the main thread
+    if let Err(e) = tray_ui::init_tray_icon(ui_intents_tx.clone(), initial_model.clone()) {
         eprintln!("Failed to initialize tray icon: {}", e);
     }
 
@@ -54,10 +61,11 @@ fn main() {
         recorded_samples,
         english_transcriber,
         multilingual_transcriber,
+        initial_model.clone(),
     );
 
     // Create a channel for keyboard events
-    let (sender, receiver) = channel::<KeyboardEvent>();
+    let (sender, kb_receiver) = channel::<KeyboardEvent>();
 
     // Store the sender in the global static
     *KEYBOARD_EVENT_SENDER.lock().unwrap() = Some(sender);
@@ -71,6 +79,13 @@ fn main() {
 
     println!("Waiting for Ctrl+CAPSLOCK key combination (works even when app is not in focus)...");
 
-    // Hand over to the app's event loop
-    app.run_loop(receiver);
+    // Run the app's event loop in a dedicated thread
+    let _app_thread = thread::spawn(move || {
+        // Hand over to the app's event loop with both keyboard and UI intent channels
+        app.run_loop(kb_receiver, ui_intents_rx);
+    });
+
+    // GTK main loop on the main thread
+    #[cfg(feature = "tray-icon")]
+    gtk::main();
 }

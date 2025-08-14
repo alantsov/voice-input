@@ -1,7 +1,9 @@
 use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::mpsc::Receiver;
 use std::thread;
 use std::time::Duration;
+use std::collections::HashMap;
 
 use crate::audio_stream::AudioStream;
 use crate::clipboard_inserter;
@@ -9,32 +11,10 @@ use crate::hotkeys::KeyboardEvent;
 use crate::keyboard_layout::KeyboardLayoutDetector;
 use crate::transcriber_utils::{ensure_transcriber_for, select_model_file, transcribe_samples_with};
 use crate::whisper::WhisperTranscriber;
-use crate::SELECTED_MODEL;
+use crate::config;
 
-// Semantic tray states instead of magic strings
-enum TrayState {
-    Ready,
-    Recording,
-    Processing,
-}
-
-impl TrayState {
-    fn icon_key(&self) -> &'static str {
-        match self {
-            TrayState::Ready => "white",
-            TrayState::Recording => "red",
-            TrayState::Processing => "blue",
-        }
-    }
-}
-
-// Thin wrapper to update tray icon by semantic state
-fn set_tray(state: TrayState) {
-    #[cfg(feature = "tray-icon")]
-    {
-        crate::tray_icon::tray_icon_set_state(state.icon_key());
-    }
-}
+#[cfg(feature = "tray-icon")]
+use crate::tray_ui::{tray_post_view, AppView, TrayStatus, ModelProgress, UiIntent};
 
 // Public, app-wide status for logic/UI
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -44,10 +24,23 @@ enum AppStatus {
     Processing,
 }
 
+impl AppStatus {
+    #[cfg(feature = "tray-icon")]
+    fn to_tray(self) -> TrayStatus {
+        match self {
+            AppStatus::Ready => TrayStatus::Ready,
+            AppStatus::Recording => TrayStatus::Recording,
+            AppStatus::Processing => TrayStatus::Processing,
+        }
+    }
+}
+
 // Centralized app state for the event loop
 struct AppState {
     status: AppStatus,
     current_language: String,
+    active_model: String,
+    loading: HashMap<String, ModelProgress>,
     english_transcriber: Arc<Mutex<Option<WhisperTranscriber>>>,
     multilingual_transcriber: Arc<Mutex<Option<WhisperTranscriber>>>,
     recorded_samples: Arc<Mutex<Vec<f32>>>,
@@ -73,17 +66,30 @@ impl App {
         recorded_samples: Arc<Mutex<Vec<f32>>>,
         english_transcriber: Arc<Mutex<Option<WhisperTranscriber>>>,
         multilingual_transcriber: Arc<Mutex<Option<WhisperTranscriber>>>,
+        initial_model: String,
     ) -> Self {
         Self {
             state: AppState {
                 status: AppStatus::Ready,
                 current_language: String::from("en"),
+                active_model: initial_model,
+                loading: HashMap::new(),
                 english_transcriber,
                 multilingual_transcriber,
                 recorded_samples,
                 stream,
             },
         }
+    }
+
+    #[cfg(feature = "tray-icon")]
+    fn post_view(&self) {
+        let view = AppView {
+            active_model: self.state.active_model.clone(),
+            status: self.state.status.to_tray(),
+            loading: self.state.loading.clone(),
+        };
+        tray_post_view(view);
     }
 
     fn start_recording(&mut self) {
@@ -94,6 +100,8 @@ impl App {
 
         println!("Ctrl+CAPSLOCK pressed - Recording started");
         self.state.status = AppStatus::Recording;
+        #[cfg(feature = "tray-icon")]
+        self.post_view();
 
         // Detect and store language code
         let language_code = detect_language_code();
@@ -109,14 +117,12 @@ impl App {
         // Start audio stream + enable capture
         self.state.stream.play().expect("Failed to start the stream");
         self.state.stream.start_capture();
-        set_tray(TrayState::Recording);
 
         // Initialize Whisper after starting recording
         let is_english = language_code.starts_with("en");
 
         // Resolve the model file based on selected model and language
-        let selected_model = SELECTED_MODEL.lock().unwrap().clone();
-        let model_file = select_model_file(&selected_model, is_english);
+        let model_file = select_model_file(&self.state.active_model, is_english);
 
         // Ensure the appropriate transcriber is initialized (with fallback)
         ensure_transcriber_for(
@@ -131,8 +137,9 @@ impl App {
         // Only process "stop/transcribe" if we were recording
         if self.state.status != AppStatus::Recording {
             println!("No audio recorded");
-            set_tray(TrayState::Ready);
             self.state.status = AppStatus::Ready;
+            #[cfg(feature = "tray-icon")]
+            self.post_view();
             return;
         }
 
@@ -142,9 +149,10 @@ impl App {
         self.state.stream.stop_capture();
         self.state.stream.pause().expect("Failed to pause the stream");
 
-        // Update status and tray icon: processing/transcribing
+        // Update status: processing/transcribing (tray will be blue)
         self.state.status = AppStatus::Processing;
-        set_tray(TrayState::Processing);
+        #[cfg(feature = "tray-icon")]
+        self.post_view();
 
         // Get the recorded samples
         let samples = self.state.recorded_samples.lock().unwrap().clone();
@@ -192,29 +200,147 @@ impl App {
 
         // Back to ready
         self.state.status = AppStatus::Ready;
-        set_tray(TrayState::Ready);
+        #[cfg(feature = "tray-icon")]
+        self.post_view();
     }
 
-    pub fn run_loop(&mut self, receiver: Receiver<KeyboardEvent>) -> ! {
+    pub fn run_loop(&mut self, kb_receiver: Receiver<KeyboardEvent>, ui_receiver: Receiver<UiIntent>) -> ! {
+        #[cfg(feature = "tray-icon")]
+        self.post_view();
+
         loop {
+            // Handle UI intents (model selection, quit)
+            if let Ok(intent) = ui_receiver.try_recv() {
+                match intent {
+                    UiIntent::SelectModel(model) => {
+                        if self.state.active_model != model {
+                            // Persist selection
+                            if let Err(e) = config::save_selected_model(&model) {
+                                eprintln!("Failed to save selected model to config file: {}", e);
+                            } else {
+                                println!("Saved selected model '{}' to config file", model);
+                            }
+
+                            self.state.active_model = model.clone();
+                            #[cfg(feature = "tray-icon")]
+                            self.post_view();
+
+                            // Ensure model is available (downloads if needed) and update progress map
+                            self.ensure_model_async(model);
+                        }
+                    }
+                    UiIntent::QuitRequested => {
+                        // Exit process (clean up if needed)
+                        std::process::exit(0);
+                    }
+                }
+            }
+
             // Check for keyboard events
-            if let Ok(event) = receiver.try_recv() {
+            if let Ok(event) = kb_receiver.try_recv() {
                 match event {
                     KeyboardEvent::CtrlCapsLockPressed => self.start_recording(),
                     KeyboardEvent::CtrlCapsLockReleased => self.stop_and_transcribe(),
                 }
             }
 
-            // Process GTK events if the tray-icon feature is enabled
-            #[cfg(feature = "tray-icon")]
-            {
-                while gtk::events_pending() {
-                    gtk::main_iteration_do(false);
-                }
-            }
-
             // Sleep to reduce CPU usage
             thread::sleep(Duration::from_millis(10));
         }
+    }
+
+    fn ensure_model_async(&mut self, model: String) {
+        // quick existence check
+        let (en_model_file, multi_model_file) = get_both_model_filenames(&model);
+        let en_exists = if model != "large" {
+            config::get_model_path(&en_model_file).is_some()
+        } else { true };
+        let multi_exists = config::get_model_path(&multi_model_file).is_some();
+
+        if en_exists && multi_exists {
+            return;
+        }
+
+        // Mark as loading at 0%
+        #[cfg(feature = "tray-icon")]
+        {
+            self.state.loading.insert(model.clone(), ModelProgress { percent: 0, eta_secs: 0 });
+            self.post_view();
+        }
+
+        // Spawn download worker
+        let ui_model = model.clone();
+        thread::spawn(move || {
+            // forward progress to app thread via global callback by updating config or external event mechanism
+            // Here, we reuse whisper's callback; the app thread will not receive direct calls,
+            // so we emit updates via a simple side-channel approach: we cannot mutate self here,
+            // thus we only drive downloads; the app thread will refresh progress via callback closures set below.
+            let _ = ui_model; // kept to satisfy move
+        });
+
+        // Register progress callback that updates our local state and posts snapshots
+        let last_p = Arc::new(AtomicU8::new(255)); // force first emit
+        let model_for_cb = model.clone();
+        let last_p_cb = last_p.clone();
+        WhisperTranscriber::set_download_progress_callback(Some(Box::new({
+            let model_for_cb_clone = model_for_cb.clone();
+            move |percent, eta_secs| {
+                let p = percent.clamp(0.0, 100.0) as u8;
+                let prev = last_p_cb.swap(p, Ordering::SeqCst);
+                if p == prev {
+                    return;
+                }
+                #[cfg(feature = "tray-icon")]
+                {
+                    // This closure runs on a background thread; only send snapshots to the UI.
+                    let mut loading = HashMap::new();
+                    loading.insert(model_for_cb_clone.clone(), ModelProgress { percent: p, eta_secs });
+                    let view = AppView {
+                        active_model: model_for_cb_clone.clone(),
+                        status: TrayStatus::Ready, // status is independent of download
+                        loading,
+                    };
+                    tray_post_view(view);
+                }
+            }
+        })));
+
+        // Perform the downloads synchronously on a worker thread so the app loop remains responsive
+        let need_en = !en_exists && model != "large";
+        let need_multi = !multi_exists;
+        let model_for_done = model.clone();
+        thread::spawn(move || {
+            if need_en {
+                let _ = WhisperTranscriber::download_model(&en_model_file);
+            }
+            if need_multi {
+                let _ = WhisperTranscriber::download_model(&multi_model_file);
+            }
+            WhisperTranscriber::set_download_progress_callback(None);
+            #[cfg(feature = "tray-icon")]
+            {
+                // Clear progress for the model
+                let view = AppView {
+                    active_model: model_for_done.clone(),
+                    status: TrayStatus::Ready,
+                    loading: HashMap::new(),
+                };
+                tray_post_view(view);
+            }
+        });
+    }
+}
+
+fn get_both_model_filenames(model: &str) -> (String, String) {
+    match model {
+        "base" | "tiny" | "small" | "medium" => (
+            format!("ggml-{}.en.bin", model),
+            format!("ggml-{}.bin", model),
+        ),
+        "large" => (
+            format!("ggml-{}-v2.bin", model),
+            format!("ggml-{}-v2.bin", model),
+        ),
+        _ => ("ggml-base.en.bin".into(), "ggml-base.bin".into()),
     }
 }
