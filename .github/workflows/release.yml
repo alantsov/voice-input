@@ -22,7 +22,7 @@ jobs:
 
     - name: Install packaging and build dependencies
       run: |
-        apt-get update -qy
+        sudo apt-get update -qy
         # Add NVIDIA’s CUDA repo key + list
         wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-archive-keyring.gpg
         mv cuda-archive-keyring.gpg /usr/share/keyrings/
