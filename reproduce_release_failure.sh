@@ -14,7 +14,7 @@ set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 LOG_FILE="$PROJECT_DIR/build_reproduction_result.txt"
-UBUNTU_VER="${1:-24.04}"
+UBUNTU_VER="${1:-22.04}"
 
 cat > "$LOG_FILE" <<EOF
 [Reproduction Script]
@@ -28,6 +28,15 @@ read -r -d '' APT_SCRIPT <<'EOS' || true
 set -euxo pipefail
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qy
+apt-get install -qy wget gnupg
+
+# Add NVIDIA’s CUDA repo key + list
+wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-archive-keyring.gpg
+mv cuda-archive-keyring.gpg /usr/share/keyrings/
+echo "deb [signed-by=/usr/share/keyrings/cuda-archive-keyring.gpg] https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/ /" \
+  > /etc/apt/sources.list.d/cuda.list
+
+apt-get update -qy
 apt-get install -qy \
   build-essential curl git pkg-config cmake \
   debhelper dpkg-dev fakeroot dh-make \
@@ -38,7 +47,7 @@ apt-get install -qy \
   libxcb-shape0-dev libxcb-xfixes0-dev \
   libgtk-3-dev libayatana-appindicator3-dev \
   clang llvm-dev libclang-dev \
-  nvidia-cuda-toolkit nvidia-cuda-dev libcublas-dev
+  nvidia-cuda-toolkit nvidia-cuda-dev libcublas-dev-12-8
 EOS
 
 # Docker image tag
