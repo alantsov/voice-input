@@ -166,3 +166,34 @@ cargo build --release
 # cargo build --release --features tray-icon
 
 ```
+
+## GitHub Actions & Releases
+
+This repository uses a single release workflow that runs only when a version tag is pushed. Regular branch pushes and pull requests do not trigger any workflows.
+
+- Trigger: pushing a tag that matches vX.Y.Z (for example: v0.2.3)
+- Workflow file: .github/workflows/release.yml
+- Output: a Debian package (.deb) built with both features enabled: tray-icon and cuda
+- Release: the .deb is attached to a GitHub Release created for the tag
+
+What happens on tag push:
+- Dependencies for packaging, GTK/tray, CUDA, and LLVM/Clang are installed.
+- LIBCLANG_PATH is set for bindgen-dependent crates.
+- The Debian package is built via dpkg-buildpackage, which calls debian/rules.
+  - debian/rules forces cargo build --release with both --features tray-icon and --features cuda.
+- A GitHub Release is created and the resulting .deb is uploaded as an asset.
+
+How to cut a release:
+```bash
+# Ensure your changes are committed on the main branch (or your release branch)
+# Bump version in Cargo.toml if needed.
+
+git tag v0.2.3
+git push origin v0.2.3
+```
+
+Notes:
+- Only pushing a tag triggers the release. No other events run GitHub Actions.
+- The release workflow builds on Ubuntu and produces an amd64 .deb. Installation example:
+  sudo dpkg -i <downloaded_deb_file>
+  sudo apt-get -f install  # fix any missing dependencies
