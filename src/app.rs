@@ -13,8 +13,9 @@ use crate::transcriber_utils::{ensure_transcriber_for, select_model_file, transc
 use crate::whisper::WhisperTranscriber;
 use crate::config;
 
+use crate::tray_ui::{ModelProgress, UiIntent};
 #[cfg(feature = "tray-icon")]
-use crate::tray_ui::{tray_post_view, AppView, TrayStatus, ModelProgress, UiIntent};
+use crate::tray_ui::{tray_post_view, AppView, TrayStatus};
 
 // Public, app-wide status for logic/UI
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -20,6 +20,7 @@ use std::sync::{Mutex, mpsc::Sender};
 #[cfg(feature = "tray-icon")]
 use lazy_static::lazy_static;
 
+#[cfg(feature = "tray-icon")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TrayStatus {
     Ready,
@@ -27,12 +28,14 @@ pub enum TrayStatus {
     Processing,
 }
 
+#[cfg(feature = "tray-icon")]
 #[derive(Debug, Clone)]
 pub struct ModelProgress {
     pub percent: u8,
     pub eta_secs: u64,
 }
 
+#[cfg(feature = "tray-icon")]
 #[derive(Debug, Clone)]
 pub struct AppView {
     pub active_model: String,
@@ -41,6 +44,7 @@ pub struct AppView {
 }
 
 // Intents from tray UI to app thread
+#[cfg(feature = "tray-icon")]
 #[derive(Debug, Clone)]
 pub enum UiIntent {
     SelectModel(String),
