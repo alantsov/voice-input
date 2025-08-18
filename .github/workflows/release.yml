@@ -41,6 +41,9 @@ jobs:
             clang llvm-dev libclang-dev \
             cuda-toolkit-12-4
 
+      - name: Add CUDA to PATH
+        run: echo "/usr/local/cuda/bin" >> $GITHUB_PATH
+
       - name: Set LIBCLANG_PATH
         run: echo "LIBCLANG_PATH=$(llvm-config --libdir)" >> $GITHUB_ENV
 
