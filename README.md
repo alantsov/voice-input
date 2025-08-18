@@ -132,3 +132,37 @@ sudo apt-get install -f  # Install any missing dependencies
 ```
 
 After installation, you can launch the application from your application menu or by running `voice-input` in the terminal. The application will also start automatically when you log in to your system.
+
+
+reproducing Github actions
+```bash
+docker run --rm -it ghcr.io/catthehacker/ubuntu:act-22.04 bash
+apt-get update -qy
+apt-get install -qy \
+  build-essential curl git pkg-config cmake \
+  libssl-dev \
+  libasound2-dev \
+  libx11-dev libxtst-dev libxi-dev libxkbcommon-dev \
+  clang llvm-dev libclang-dev
+
+# Optional: if you build with the tray feature, also:
+# apt-get install -qy libgtk-3-dev libappindicator3-dev
+
+# Point bindgen to libclang (best: use llvm-config)
+export LIBCLANG_PATH="$(llvm-config --libdir)"
+
+# Sanity check: should exist
+ls -l "$LIBCLANG_PATH/libclang.so" || echo "libclang.so not found in $LIBCLANG_PATH"
+
+curl https://sh.rustup.rs -sSf | sh -s -- -y
+source $HOME/.cargo/env
+
+git clone https://github.com/alantsov/voice-input.git
+cd voice-input
+
+# Build again
+cargo build --release
+# or, if your CI enables it:
+# cargo build --release --features tray-icon
+
+```
