@@ -91,6 +91,7 @@ impl App {
             active_model: self.state.active_model.clone(),
             status: self.state.status.to_tray(),
             loading: self.state.loading.clone(),
+            translate_enabled: self.state.translate_enabled,
         };
         tray_post_view(view);
     }
@@ -250,6 +251,8 @@ impl App {
                             } else {
                                 println!("Translate setting set to {} and saved", enabled);
                             }
+                            #[cfg(feature = "tray-icon")]
+                            self.post_view();
                         }
                     }
                     UiIntent::QuitRequested => {
@@ -264,6 +267,17 @@ impl App {
                 match event {
                     KeyboardEvent::CtrlCapsLockPressed => self.start_recording(),
                     KeyboardEvent::CtrlCapsLockReleased => self.stop_and_transcribe(),
+                    KeyboardEvent::CtrlShiftCapsToggleTranslate => {
+                        let new_val = !self.state.translate_enabled;
+                        self.state.translate_enabled = new_val;
+                        if let Err(e) = config::save_translate_enabled(new_val) {
+                            eprintln!("Failed to save translate setting: {}", e);
+                        } else {
+                            println!("Translate setting toggled to {} via Ctrl+Shift+Caps", new_val);
+                        }
+                        #[cfg(feature = "tray-icon")]
+                        self.post_view();
+                    }
                 }
             }
 
@@ -322,6 +336,7 @@ impl App {
                         active_model: model_for_cb_clone.clone(),
                         status: TrayStatus::Ready, // status is independent of download
                         loading,
+                        translate_enabled: config::get_translate_enabled(),
                     };
                     tray_post_view(view);
                 }
@@ -347,6 +362,7 @@ impl App {
                     active_model: model_for_done.clone(),
                     status: TrayStatus::Ready,
                     loading: HashMap::new(),
+                    translate_enabled: config::get_translate_enabled(),
                 };
                 tray_post_view(view);
             }

@@ -7,15 +7,17 @@ use rdev::{Event, EventType, Key};
 pub enum KeyboardEvent {
     CtrlCapsLockPressed,
     CtrlCapsLockReleased,
+    CtrlShiftCapsToggleTranslate,
 }
 
 lazy_static! {
     pub static ref KEYBOARD_EVENT_SENDER: Mutex<Option<Sender<KeyboardEvent>>> = Mutex::new(None);
     static ref CTRL_PRESSED: Mutex<bool> = Mutex::new(false);
+    static ref SHIFT_PRESSED: Mutex<bool> = Mutex::new(false);
 }
 
 pub fn handle_keyboard_event(event: Event) {
-    // We're interested in Ctrl+CAPSLOCK key combination
+    // We're interested in Ctrl+CAPSLOCK for recording and Ctrl+Shift+CAPSLOCK for toggling translate mode
     match event.event_type {
         EventType::KeyPress(Key::ControlLeft) | EventType::KeyPress(Key::ControlRight) => {
             *CTRL_PRESSED.lock().unwrap() = true;
@@ -27,8 +29,20 @@ pub fn handle_keyboard_event(event: Event) {
                 let _ = sender.send(KeyboardEvent::CtrlCapsLockReleased);
             }
         },
+        EventType::KeyPress(Key::ShiftLeft) | EventType::KeyPress(Key::ShiftRight) => {
+            *SHIFT_PRESSED.lock().unwrap() = true;
+        },
+        EventType::KeyRelease(Key::ShiftLeft) | EventType::KeyRelease(Key::ShiftRight) => {
+            *SHIFT_PRESSED.lock().unwrap() = false;
+        },
         EventType::KeyPress(Key::CapsLock) => {
-            if *CTRL_PRESSED.lock().unwrap() {
+            let ctrl = *CTRL_PRESSED.lock().unwrap();
+            let shift = *SHIFT_PRESSED.lock().unwrap();
+            if ctrl && shift {
+                if let Some(sender) = &*KEYBOARD_EVENT_SENDER.lock().unwrap() {
+                    let _ = sender.send(KeyboardEvent::CtrlShiftCapsToggleTranslate);
+                }
+            } else if ctrl {
                 if let Some(sender) = &*KEYBOARD_EVENT_SENDER.lock().unwrap() {
                     let _ = sender.send(KeyboardEvent::CtrlCapsLockPressed);
                 }

@@ -41,6 +41,7 @@ pub struct AppView {
     pub active_model: String,
     pub status: TrayStatus,
     pub loading: HashMap<String, ModelProgress>,
+    pub translate_enabled: bool,
 }
 
 // Intents from tray UI to app thread
@@ -190,6 +191,7 @@ pub fn init_tray_icon(intents_tx: Sender<UiIntent>, initial_model: String, initi
         }
         let indicator_for_rx = indicator.clone();
         let model_menu_item_for_rx = model_menu_item.clone();
+        let translate_item_for_rx = translate_item.clone();
 
         rx.attach(None, move |view: AppView| {
             // Update icon based on status
@@ -212,6 +214,9 @@ pub fn init_tray_icon(intents_tx: Sender<UiIntent>, initial_model: String, initi
                     item.set_label(name);
                 }
             }
+
+            // Reflect translate toggle state in the checkbox
+            translate_item_for_rx.set_active(view.translate_enabled);
 
             model_menu_item_for_rx.set_label(&top_label);
             ControlFlow::Continue
@@ -240,7 +245,7 @@ pub enum TrayStatus { Ready, Recording, Processing }
 pub struct ModelProgress { pub percent: u8, pub eta_secs: u64 }
 #[cfg(not(feature = "tray-icon"))]
 #[derive(Debug, Clone)]
-pub struct AppView { pub active_model: String, pub status: TrayStatus, pub loading: std::collections::HashMap<String, ModelProgress> }
+pub struct AppView { pub active_model: String, pub status: TrayStatus, pub loading: std::collections::HashMap<String, ModelProgress>, pub translate_enabled: bool }
 #[cfg(not(feature = "tray-icon"))]
 #[derive(Debug, Clone)]
 pub enum UiIntent { SelectModel(String), ToggleTranslate(bool), QuitRequested }
