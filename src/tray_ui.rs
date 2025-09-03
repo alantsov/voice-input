@@ -60,11 +60,14 @@ lazy_static! {
 }
 
 #[cfg(feature = "tray-icon")]
-fn icon_name_for_status(status: TrayStatus) -> &'static str {
-    match status {
-        TrayStatus::Ready => "voice-input-white",
-        TrayStatus::Recording => "voice-input-red",
-        TrayStatus::Processing => "voice-input-blue",
+fn icon_name_for_status(status: TrayStatus, translate: bool) -> &'static str {
+    match (status, translate) {
+        (TrayStatus::Ready, false) => "voice-input-white",
+        (TrayStatus::Recording, false) => "voice-input-red",
+        (TrayStatus::Processing, false) => "voice-input-blue",
+        (TrayStatus::Ready, true) => "voice-input-translate-white",
+        (TrayStatus::Recording, true) => "voice-input-translate-red",
+        (TrayStatus::Processing, true) => "voice-input-translate-blue",
     }
 }
 
@@ -112,8 +115,8 @@ pub fn init_tray_icon(intents_tx: Sender<UiIntent>, initial_model: String, initi
         }
     }
 
-    // Default icon: white (ready)
-    indicator.borrow_mut().set_icon("voice-input-white");
+    // Default icon: white (ready), respect initial_translate
+    indicator.borrow_mut().set_icon(if initial_translate { "voice-input-translate-white" } else { "voice-input-white" });
 
     let mut menu = Menu::new();
 
@@ -194,8 +197,8 @@ pub fn init_tray_icon(intents_tx: Sender<UiIntent>, initial_model: String, initi
         let translate_item_for_rx = translate_item.clone();
 
         rx.attach(None, move |view: AppView| {
-            // Update icon based on status
-            indicator_for_rx.borrow_mut().set_icon(icon_name_for_status(view.status));
+            // Update icon based on status and translate mode
+            indicator_for_rx.borrow_mut().set_icon(icon_name_for_status(view.status, view.translate_enabled));
 
             // Build top label and update items (show progress where available)
             let mut top_label = format!("Model: {}", view.active_model);

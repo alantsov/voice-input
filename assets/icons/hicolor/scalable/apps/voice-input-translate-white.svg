@@ -38,45 +38,45 @@
      width="4.4360628"
      height="10.496555"
      rx="2.2180314"
-     fill="currentColor"
+     fill="#FFFFFF"
      id="rect63"
      style="stroke-width:1.07893" />
   <!-- Microphone stand -->
   <path
      d="m 10.980528,15.05906 v 5.802402"
-     stroke="currentColor"
+     stroke="#FFFFFF"
      stroke-width="1.90254"
      stroke-linecap="round"
      id="path65" />
   <path
      d="M 7.3634281,21.075622 H 14.017523"
-     stroke="currentColor"
+     stroke="#FFFFFF"
      stroke-width="1.61839"
      stroke-linecap="round"
      id="path67" />
   <!-- Sound waves / recording indicator -->
   <path
      d="m 5.4586866,8.3734559 c 0,-2.3791453 2.4398346,-4.3257187 5.5450784,-4.3257187 3.105244,0 5.545079,1.9465734 5.545079,4.3257187 v 2.1628601 c 0,2.379145 -2.439835,4.325718 -5.545079,4.325718 -3.1052438,0 -5.5450784,-1.946573 -5.5450784,-4.325718 V 8.3734559"
-     stroke="currentColor"
+     stroke="#FFFFFF"
      stroke-width="1.6427"
      fill="none"
      id="path69" />
   <!-- Text/transcription lines -->
   <path
      d="m 16.710046,19.331166 h 3.327048"
-     stroke="currentColor"
+     stroke="#FFFFFF"
      stroke-width="1.07893"
      stroke-linecap="round"
      id="path71" />
   <path
      d="m 16.747846,15.561064 h 2.218032"
-     stroke="currentColor"
+     stroke="#FFFFFF"
      stroke-width="1.07893"
      stroke-linecap="round"
      id="path73" />
   <path
      d="m 16.712622,17.500631 h 3.327047"
-     stroke="currentColor"
+     stroke="#FFFFFF"
      stroke-width="1.07893"
      stroke-linecap="round"
      id="path75" />
@@ -84,8 +84,8 @@
   <!-- T_OVERLAY_START -->
   <!-- Letter T on the left (same color as mic) -->
   <g id="t-overlay">
-    <rect x="2" y="3" width="1.2" height="8" rx="0.3" fill="currentColor"/>
-    <rect x="1" y="3" width="3.2" height="1.2" rx="0.3" fill="currentColor"/>
+    <rect x="2" y="3" width="1.2" height="8" rx="0.3" fill="#FFFFFF"/>
+    <rect x="1" y="3" width="3.2" height="1.2" rx="0.3" fill="#FFFFFF"/>
   </g>
   <!-- T_OVERLAY_END -->
 </svg>

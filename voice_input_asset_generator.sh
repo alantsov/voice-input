@@ -64,8 +64,8 @@ for name in "${!COLORS[@]}"; do
   tmp_svg="${TMP_DIR}/${base_out_name}.svg"
 
   # Replace currentColor with the chosen color (case-sensitive, exact token)
-  # This leaves fill=\"none\" and other attributes intact.
-  sed 's/currentColor/'"$color"'/g' "$SRC_SVG" > "$tmp_svg"
+  # For base (no-translate) variants, remove the T overlay block before coloring.
+  sed '/T_OVERLAY_START/,/T_OVERLAY_END/d' "$SRC_SVG" | sed 's/currentColor/'"$color"'/g' > "$tmp_svg"
 
   # Save the colored SVG into scalable/apps
   out_svg="${OUT_ROOT}/scalable/apps/${base_out_name}.svg"
@@ -77,8 +77,22 @@ for name in "${!COLORS[@]}"; do
     render_png "$tmp_svg" "$sz" "$out_png"
     echo "  -> ${sz}x${sz} ${base_out_name}.png"
   done
+
+  # Generate TRANSLATE variant (with letter 'T' on the left). Keep the overlay and just colorize.
+  translate_base_name="voice-input-translate-${name}"
+  tmp_svg_translate="${TMP_DIR}/${translate_base_name}.svg"
+
+  sed 's/currentColor/'"$color"'/g' "$SRC_SVG" > "$tmp_svg_translate"
+
+  out_svg_translate="${OUT_ROOT}/scalable/apps/${translate_base_name}.svg"
+  cp "$tmp_svg_translate" "$out_svg_translate"
+  for sz in "${SIZES[@]}"; do
+    out_png_translate="${OUT_ROOT}/${sz}x${sz}/apps/${translate_base_name}.png"
+    render_png "$tmp_svg_translate" "$sz" "$out_png_translate"
+    echo "  -> ${sz}x${sz} ${translate_base_name}.png"
+  done
 done
 
 echo "Done."
-echo "SVGs: ${OUT_ROOT}/scalable/apps/voice-input-{blue,red,yellow}.svg"
-echo "PNGs: ${OUT_ROOT}/{16x16,22x22,24x24,32x32,48x48}/apps/voice-input-*.png"
+echo "SVGs: ${OUT_ROOT}/scalable/apps/voice-input-{blue,red,yellow,white}.svg and voice-input-translate-{blue,red,yellow,white}.svg"
+echo "PNGs: ${OUT_ROOT}/{16x16,22x22,24x24,32x32,48x48}/apps/{voice-input-*,voice-input-translate-*}.png"
