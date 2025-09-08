@@ -267,13 +267,13 @@ impl App {
                 match event {
                     KeyboardEvent::CtrlCapsLockPressed => self.start_recording(),
                     KeyboardEvent::CtrlCapsLockReleased => self.stop_and_transcribe(),
-                    KeyboardEvent::CtrlShiftCapsToggleTranslate => {
+                    KeyboardEvent::AltCapsToggleTranslate => {
                         let new_val = !self.state.translate_enabled;
                         self.state.translate_enabled = new_val;
                         if let Err(e) = config::save_translate_enabled(new_val) {
                             eprintln!("Failed to save translate setting: {}", e);
                         } else {
-                            println!("Translate setting toggled to {} via Ctrl+Shift+Caps", new_val);
+                            println!("Translate setting toggled to {} via Alt+Caps", new_val);
                         }
                         #[cfg(feature = "tray-icon")]
                         self.post_view();

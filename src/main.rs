@@ -44,7 +44,7 @@ fn main() {
 
     download_base_models();
     println!("Press Ctrl+CAPSLOCK to start recording, release to save and insert transcript at cursor position");
-    println!("Press Ctrl+Shift+CAPSLOCK to toggle between Transcription and Translation modes");
+    println!("Press Alt+CAPSLOCK to toggle between Transcription and Translation modes");
 
     // Initialize shared components
     let english_transcriber: Arc<Mutex<Option<WhisperTranscriber>>> = Arc::new(Mutex::new(None));

@@ -169,6 +169,7 @@ pub fn init_tray_icon(intents_tx: Sender<UiIntent>, initial_model: String, initi
         dialog.set_program_name("Voice Input");
         dialog.set_comments(Some("A simple application for recording voice input using the microphone.\n\n\
                                  • Press Ctrl+CAPSLOCK to start and finish recording\n\
+                                 • Press Alt+CAPSLOCK to toggle translation mode\n\
                                  • Transcribed text will be inserted into the current application\n\
                                  • Transcription language is determined by your current keyboard layout"));
         dialog.run();
