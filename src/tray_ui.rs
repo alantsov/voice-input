@@ -126,7 +126,7 @@ pub fn init_tray_icon(intents_tx: Sender<UiIntent>, initial_model: String, initi
     // Model submenu
     let model_menu_item = MenuItem::with_label(&format!("Model: {}", initial_model));
     let model_menu = Menu::new();
-    let model_options = vec!["tiny", "base", "small", "medium", "large"];
+    let model_options = vec!["small", "medium", "large"];
     let mut model_items: Vec<CheckMenuItem> = Vec::new();
 
     // Channel for AppView snapshots

@@ -4,6 +4,13 @@ use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 use std::io;
 
+fn normalize_selected_model(model: &str) -> String {
+    match model {
+        "base" | "tiny" => "small".to_string(),
+        other => other.to_string(),
+    }
+}
+
 /// Configuration structure for the application
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
@@ -18,7 +25,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            selected_model: "base".to_string(),
+            selected_model: "small".to_string(),
             translate: false,
         }
     }
@@ -81,8 +88,19 @@ pub fn load_config() -> Config {
     if let Some(config_path) = get_config_file_path() {
         if config_path.exists() {
             match fs::read_to_string(&config_path) {
-                Ok(contents) => match serde_json::from_str(&contents) {
-                    Ok(config) => return config,
+                Ok(contents) => match serde_json::from_str::<Config>(&contents) {
+                    Ok(mut config) => {
+                        // Normalize deprecated model selections
+                        let normalized = normalize_selected_model(&config.selected_model);
+                        if normalized != config.selected_model {
+                            config.selected_model = normalized;
+                            // Try to persist the migration silently
+                            if let Err(e) = save_config(&config) {
+                                eprintln!("Failed to save migrated config: {}", e);
+                            }
+                        }
+                        return config;
+                    }
                     Err(e) => {
                         eprintln!("Failed to parse config file: {}", e);
                     }
@@ -112,13 +130,14 @@ pub fn save_config(config: &Config) -> io::Result<()> {
 /// Save just the selected model
 pub fn save_selected_model(model: &str) -> io::Result<()> {
     let mut config = load_config();
-    config.selected_model = model.to_string();
+    config.selected_model = normalize_selected_model(model);
     save_config(&config)
 }
 
 /// Get the selected model
 pub fn get_selected_model() -> String {
-    load_config().selected_model
+    let cfg = load_config();
+    normalize_selected_model(&cfg.selected_model)
 }
 
 /// Save just the translate flag
