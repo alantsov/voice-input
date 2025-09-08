@@ -1,7 +1,7 @@
-use std::sync::Mutex;
-use std::sync::mpsc::Sender;
 use lazy_static::lazy_static;
 use rdev::{Event, EventType, Key};
+use std::sync::mpsc::Sender;
+use std::sync::Mutex;
 
 #[derive(Debug, Clone, Copy)]
 pub enum KeyboardEvent {
@@ -21,20 +21,20 @@ pub fn handle_keyboard_event(event: Event) {
     match event.event_type {
         EventType::KeyPress(Key::ControlLeft) | EventType::KeyPress(Key::ControlRight) => {
             *CTRL_PRESSED.lock().unwrap() = true;
-        },
+        }
         EventType::KeyRelease(Key::ControlLeft) | EventType::KeyRelease(Key::ControlRight) => {
             *CTRL_PRESSED.lock().unwrap() = false;
             // Send CtrlCapsLockReleased event when Ctrl is released
             if let Some(sender) = &*KEYBOARD_EVENT_SENDER.lock().unwrap() {
                 let _ = sender.send(KeyboardEvent::CtrlCapsLockReleased);
             }
-        },
+        }
         EventType::KeyPress(Key::Alt) | EventType::KeyPress(Key::AltGr) => {
             *ALT_PRESSED.lock().unwrap() = true;
-        },
+        }
         EventType::KeyRelease(Key::Alt) | EventType::KeyRelease(Key::AltGr) => {
             *ALT_PRESSED.lock().unwrap() = false;
-        },
+        }
         EventType::KeyPress(Key::CapsLock) => {
             let ctrl = *CTRL_PRESSED.lock().unwrap();
             let alt = *ALT_PRESSED.lock().unwrap();
@@ -47,13 +47,13 @@ pub fn handle_keyboard_event(event: Event) {
                     let _ = sender.send(KeyboardEvent::CtrlCapsLockPressed);
                 }
             }
-        },
+        }
         EventType::KeyRelease(Key::CapsLock) => {
             // Send CtrlCapsLockReleased event when CAPSLOCK is released, regardless of Ctrl state
             if let Some(sender) = &*KEYBOARD_EVENT_SENDER.lock().unwrap() {
                 let _ = sender.send(KeyboardEvent::CtrlCapsLockReleased);
             }
-        },
+        }
         _ => {}
     }
 }

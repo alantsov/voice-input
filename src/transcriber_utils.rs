@@ -38,7 +38,10 @@ pub fn ensure_transcriber_for(
     if is_english {
         let mut guard = english_transcriber.lock().unwrap();
         if guard.is_none() {
-            println!("Initializing English transcriber with model: {}", resolved_model);
+            println!(
+                "Initializing English transcriber with model: {}",
+                resolved_model
+            );
             match WhisperTranscriber::new(&resolved_model) {
                 Ok(t) => *guard = Some(t),
                 Err(e) => {
@@ -53,7 +56,10 @@ pub fn ensure_transcriber_for(
     } else {
         let mut guard = multilingual_transcriber.lock().unwrap();
         if guard.is_none() {
-            println!("Initializing multilingual transcriber with model: {}", resolved_model);
+            println!(
+                "Initializing multilingual transcriber with model: {}",
+                resolved_model
+            );
             match WhisperTranscriber::new(&resolved_model) {
                 Ok(t) => *guard = Some(t),
                 Err(e) => {

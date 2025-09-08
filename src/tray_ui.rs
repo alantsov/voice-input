@@ -1,21 +1,21 @@
 #[cfg(feature = "tray-icon")]
+use gtk::glib::{self, ControlFlow, Priority};
+#[cfg(feature = "tray-icon")]
 use gtk::prelude::*;
 #[cfg(feature = "tray-icon")]
-use gtk::{AboutDialog, Menu, MenuItem, SeparatorMenuItem, CheckMenuItem};
+use gtk::{AboutDialog, CheckMenuItem, Menu, MenuItem, SeparatorMenuItem};
 #[cfg(feature = "tray-icon")]
 use libappindicator::{AppIndicator, AppIndicatorStatus};
 #[cfg(feature = "tray-icon")]
-use gtk::glib::{self, Priority, ControlFlow};
+use std::cell::RefCell;
 #[cfg(feature = "tray-icon")]
 use std::collections::HashMap;
-#[cfg(feature = "tray-icon")]
-use std::cell::RefCell;
 #[cfg(feature = "tray-icon")]
 use std::path::Path;
 #[cfg(feature = "tray-icon")]
 use std::rc::Rc;
 #[cfg(feature = "tray-icon")]
-use std::sync::{Mutex, mpsc::Sender};
+use std::sync::{mpsc::Sender, Mutex};
 
 #[cfg(feature = "tray-icon")]
 use lazy_static::lazy_static;
@@ -87,15 +87,28 @@ fn format_eta(secs: u64) -> String {
 }
 
 #[cfg(feature = "tray-icon")]
-pub fn init_tray_icon(intents_tx: Sender<UiIntent>, initial_model: String, initial_translate: bool) -> Result<(), String> {
+pub fn init_tray_icon(
+    intents_tx: Sender<UiIntent>,
+    initial_model: String,
+    initial_translate: bool,
+) -> Result<(), String> {
     gtk::init().map_err(|e| format!("Failed to initialize GTK: {}", e))?;
 
-    let indicator = Rc::new(RefCell::new(AppIndicator::new("voice_input", "indicator-messages")));
-    indicator.borrow_mut().set_status(AppIndicatorStatus::Active);
+    let indicator = Rc::new(RefCell::new(AppIndicator::new(
+        "voice_input",
+        "indicator-messages",
+    )));
+    indicator
+        .borrow_mut()
+        .set_status(AppIndicatorStatus::Active);
 
     // Prefer icons from assets/icons/hicolor/48x48/apps
     let mut theme_set = false;
-    let preferred_subpath = Path::new("assets").join("icons").join("hicolor").join("48x48").join("apps");
+    let preferred_subpath = Path::new("assets")
+        .join("icons")
+        .join("hicolor")
+        .join("48x48")
+        .join("apps");
     if let Ok(cwd) = std::env::current_dir() {
         let candidate = cwd.join(&preferred_subpath);
         if candidate.exists() {
@@ -119,7 +132,11 @@ pub fn init_tray_icon(intents_tx: Sender<UiIntent>, initial_model: String, initi
     }
 
     // Default icon: white (ready), respect initial_translate
-    indicator.borrow_mut().set_icon(if initial_translate { "voice-input-translate-white" } else { "voice-input-white" });
+    indicator.borrow_mut().set_icon(if initial_translate {
+        "voice-input-translate-white"
+    } else {
+        "voice-input-white"
+    });
 
     let mut menu = Menu::new();
 
@@ -202,7 +219,9 @@ pub fn init_tray_icon(intents_tx: Sender<UiIntent>, initial_model: String, initi
 
         rx.attach(None, move |view: AppView| {
             // Update icon based on status and translate mode
-            indicator_for_rx.borrow_mut().set_icon(icon_name_for_status(view.status, view.translate_enabled));
+            indicator_for_rx
+                .borrow_mut()
+                .set_icon(icon_name_for_status(view.status, view.translate_enabled));
 
             // Build top label and update items (show progress where available)
             let mut top_label = format!("Model: {}", view.active_model);
@@ -246,17 +265,40 @@ pub fn tray_post_view(view: AppView) {
 // Stubs for non-tray builds
 #[cfg(not(feature = "tray-icon"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TrayStatus { Priming, Ready, Recording, Processing }
+pub enum TrayStatus {
+    Priming,
+    Ready,
+    Recording,
+    Processing,
+}
 #[cfg(not(feature = "tray-icon"))]
 #[derive(Debug, Clone)]
-pub struct ModelProgress { pub percent: u8, pub eta_secs: u64 }
+pub struct ModelProgress {
+    pub percent: u8,
+    pub eta_secs: u64,
+}
 #[cfg(not(feature = "tray-icon"))]
 #[derive(Debug, Clone)]
-pub struct AppView { pub active_model: String, pub status: TrayStatus, pub loading: std::collections::HashMap<String, ModelProgress>, pub translate_enabled: bool }
+pub struct AppView {
+    pub active_model: String,
+    pub status: TrayStatus,
+    pub loading: std::collections::HashMap<String, ModelProgress>,
+    pub translate_enabled: bool,
+}
 #[cfg(not(feature = "tray-icon"))]
 #[derive(Debug, Clone)]
-pub enum UiIntent { SelectModel(String), ToggleTranslate(bool), QuitRequested }
+pub enum UiIntent {
+    SelectModel(String),
+    ToggleTranslate(bool),
+    QuitRequested,
+}
 #[cfg(not(feature = "tray-icon"))]
-pub fn init_tray_icon(_: std::sync::mpsc::Sender<UiIntent>, _: String, _: bool) -> Result<(), String> { Ok(()) }
+pub fn init_tray_icon(
+    _: std::sync::mpsc::Sender<UiIntent>,
+    _: String,
+    _: bool,
+) -> Result<(), String> {
+    Ok(())
+}
 #[cfg(not(feature = "tray-icon"))]
 pub fn tray_post_view(_: AppView) {}

@@ -1,7 +1,7 @@
-use std::sync::{Arc, Mutex};
-use std::sync::atomic::{AtomicBool, Ordering};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::SampleFormat;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 
 // Audio stream implementation for microphone recording
 pub struct AudioStream {
@@ -38,14 +38,17 @@ impl AudioStream {
         let host = cpal::default_host();
 
         // Get the default input device
-        let device = host.default_input_device()
+        let device = host
+            .default_input_device()
             .ok_or_else(|| "No input device available".to_string())?;
 
-        println!("Using input device: {}", device.name().map_err(|e| e.to_string())?);
+        println!(
+            "Using input device: {}",
+            device.name().map_err(|e| e.to_string())?
+        );
 
         // Get the default config for the device
-        let config = device.default_input_config()
-            .map_err(|e| e.to_string())?;
+        let config = device.default_input_config().map_err(|e| e.to_string())?;
 
         println!("Default input config: {:?}", config);
 
@@ -71,7 +74,7 @@ impl AudioStream {
                     }
                 },
                 err_fn,
-                None
+                None,
             ),
             SampleFormat::I16 => device.build_input_stream(
                 &config.into(),
@@ -82,7 +85,7 @@ impl AudioStream {
                     }
                 },
                 err_fn,
-                None
+                None,
             ),
             SampleFormat::U16 => device.build_input_stream(
                 &config.into(),
@@ -93,10 +96,11 @@ impl AudioStream {
                     }
                 },
                 err_fn,
-                None
+                None,
             ),
             _ => return Err("Unsupported sample format".to_string()),
-        }.map_err(|e| e.to_string())?;
+        }
+        .map_err(|e| e.to_string())?;
 
         stream.play().map_err(|e| e.to_string())?;
         self.stream = Some(stream);

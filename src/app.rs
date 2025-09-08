@@ -1,21 +1,23 @@
-use std::sync::{Arc, Mutex};
-use std::sync::atomic::{AtomicU8, AtomicBool, Ordering};
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::mpsc::Receiver;
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
-use std::collections::HashMap;
 
 use crate::audio_stream::AudioStream;
 use crate::clipboard_inserter;
+use crate::config;
 use crate::hotkeys::KeyboardEvent;
 use crate::keyboard_layout::KeyboardLayoutDetector;
-use crate::transcriber_utils::{ensure_transcriber_for, select_model_file, transcribe_samples_with, translate_samples_with};
+use crate::transcriber_utils::{
+    ensure_transcriber_for, select_model_file, transcribe_samples_with, translate_samples_with,
+};
 use crate::whisper::WhisperTranscriber;
-use crate::config;
 
-use crate::tray_ui::{ModelProgress, UiIntent};
 #[cfg(feature = "tray-icon")]
 use crate::tray_ui::{tray_post_view, AppView, TrayStatus};
+use crate::tray_ui::{ModelProgress, UiIntent};
 
 static PRIMING: AtomicBool = AtomicBool::new(false);
 
@@ -54,7 +56,8 @@ struct AppState {
 }
 
 fn detect_language_code() -> String {
-    let keyboard_language = KeyboardLayoutDetector::detect_language().unwrap_or_else(|_| String::from("en"));
+    let keyboard_language =
+        KeyboardLayoutDetector::detect_language().unwrap_or_else(|_| String::from("en"));
     if keyboard_language.len() >= 2 {
         keyboard_language[0..2].to_string()
     } else {
@@ -95,7 +98,9 @@ impl App {
         let (en_file, multi_file) = get_both_model_filenames(&self.state.active_model);
         let need_en = if self.state.active_model != "large" {
             config::get_model_path(&en_file).is_none()
-        } else { false };
+        } else {
+            false
+        };
         let need_multi = config::get_model_path(&multi_file).is_none();
         let is_priming = need_en || need_multi;
         if is_priming {
@@ -142,7 +147,10 @@ impl App {
         }
 
         // Start audio stream + enable capture
-        self.state.stream.play().expect("Failed to start the stream");
+        self.state
+            .stream
+            .play()
+            .expect("Failed to start the stream");
         self.state.stream.start_capture();
 
         // Initialize Whisper after starting recording
@@ -174,7 +182,10 @@ impl App {
 
         // Stop capture immediately, then pause stream
         self.state.stream.stop_capture();
-        self.state.stream.pause().expect("Failed to pause the stream");
+        self.state
+            .stream
+            .pause()
+            .expect("Failed to pause the stream");
 
         // Update status: processing/transcribing (tray will be blue)
         self.state.status = AppStatus::Processing;
@@ -188,7 +199,10 @@ impl App {
             println!("Processing recording for transcription");
 
             // Use stored language
-            println!("Using language code for transcription: {}", self.state.current_language);
+            println!(
+                "Using language code for transcription: {}",
+                self.state.current_language
+            );
             let is_english = self.state.current_language.starts_with("en");
 
             let transcriber = if is_english {
@@ -241,7 +255,11 @@ impl App {
         self.post_view();
     }
 
-    pub fn run_loop(&mut self, kb_receiver: Receiver<KeyboardEvent>, ui_receiver: Receiver<UiIntent>) -> ! {
+    pub fn run_loop(
+        &mut self,
+        kb_receiver: Receiver<KeyboardEvent>,
+        ui_receiver: Receiver<UiIntent>,
+    ) -> ! {
         // Kick off initial ensure if we are priming
         if PRIMING.load(Ordering::SeqCst) {
             let model = self.state.active_model.clone();
@@ -319,7 +337,9 @@ impl App {
         let (en_model_file, multi_model_file) = get_both_model_filenames(&model);
         let en_exists = if model != "large" {
             config::get_model_path(&en_model_file).is_some()
-        } else { true };
+        } else {
+            true
+        };
         let multi_exists = config::get_model_path(&multi_model_file).is_some();
 
         if en_exists && multi_exists {
@@ -329,7 +349,13 @@ impl App {
         // Mark as loading at 0%
         #[cfg(feature = "tray-icon")]
         {
-            self.state.loading.insert(model.clone(), ModelProgress { percent: 0, eta_secs: 0 });
+            self.state.loading.insert(
+                model.clone(),
+                ModelProgress {
+                    percent: 0,
+                    eta_secs: 0,
+                },
+            );
             self.post_view();
         }
 
@@ -359,10 +385,20 @@ impl App {
                 {
                     // This closure runs on a background thread; only send snapshots to the UI.
                     let mut loading = HashMap::new();
-                    loading.insert(model_for_cb_clone.clone(), ModelProgress { percent: p, eta_secs });
+                    loading.insert(
+                        model_for_cb_clone.clone(),
+                        ModelProgress {
+                            percent: p,
+                            eta_secs,
+                        },
+                    );
                     let view = AppView {
                         active_model: model_for_cb_clone.clone(),
-                        status: if PRIMING.load(Ordering::SeqCst) { TrayStatus::Priming } else { TrayStatus::Ready },
+                        status: if PRIMING.load(Ordering::SeqCst) {
+                            TrayStatus::Priming
+                        } else {
+                            TrayStatus::Ready
+                        },
                         loading,
                         translate_enabled: config::get_translate_enabled(),
                     };

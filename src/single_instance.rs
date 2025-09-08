@@ -1,13 +1,14 @@
-use std::fs::File;
-use std::process;
 use directories::ProjectDirs;
 use fs2::FileExt;
+use std::fs::File;
+use std::process;
 
 /// Ensure only a single instance of the app is running by creating and locking a file.
 /// Returns the opened lock file, which must be kept in scope for the duration of the program.
 pub fn ensure_single_instance() -> File {
     // Implement single instance check
-    let lock_file = if let Some(proj_dirs) = ProjectDirs::from("com", "voice-input", "voice-input") {
+    let lock_file = if let Some(proj_dirs) = ProjectDirs::from("com", "voice-input", "voice-input")
+    {
         let cache_dir = proj_dirs.cache_dir();
         std::fs::create_dir_all(cache_dir).unwrap_or_else(|e| {
             eprintln!("Failed to create cache directory: {}", e);

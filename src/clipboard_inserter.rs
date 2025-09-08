@@ -1,10 +1,10 @@
 use arboard::Clipboard;
-use std::time::Duration;
-use std::thread;
 use rdev::{simulate, EventType, Key};
+use std::thread;
+use std::time::Duration;
 
 /// Inserts text at the current cursor position by using the clipboard
-/// 
+///
 /// This function:
 /// 1. Stores the current clipboard content
 /// 2. Puts the provided text into the clipboard
@@ -20,7 +20,9 @@ pub fn insert_text(text: &str) {
     let original_content = clipboard.get_text().ok();
 
     // Set the new text to clipboard
-    clipboard.set_text(text).expect("Failed to set clipboard content");
+    clipboard
+        .set_text(text)
+        .expect("Failed to set clipboard content");
 
     // Small delay to ensure clipboard is updated
     thread::sleep(Duration::from_millis(50));
@@ -40,6 +42,8 @@ pub fn insert_text(text: &str) {
 
     // Restore original clipboard content if there was any
     if let Some(content) = original_content {
-        clipboard.set_text(content).expect("Failed to restore clipboard content");
+        clipboard
+            .set_text(content)
+            .expect("Failed to restore clipboard content");
     }
 }

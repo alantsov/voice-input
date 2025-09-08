@@ -1,15 +1,16 @@
-use std::fs::File;
-use std::io::{Write, Read};
-use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
-use reqwest::blocking::Client;
-use indicatif::{ProgressBar, ProgressStyle};
 use crate::config;
-use std::time::{Instant, Duration};
+use indicatif::{ProgressBar, ProgressStyle};
 use lazy_static::lazy_static;
+use reqwest::blocking::Client;
+use std::fs::File;
+use std::io::{Read, Write};
 use std::sync::Mutex;
+use std::time::{Duration, Instant};
+use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 
 lazy_static! {
-    static ref DL_PROGRESS_CB: Mutex<Option<Box<dyn Fn(f64, u64) + Send + 'static>>> = Mutex::new(None);
+    static ref DL_PROGRESS_CB: Mutex<Option<Box<dyn Fn(f64, u64) + Send + 'static>>> =
+        Mutex::new(None);
 }
 
 pub struct WhisperTranscriber {
@@ -22,7 +23,6 @@ impl WhisperTranscriber {
     pub fn set_download_progress_callback(cb: Option<Box<dyn Fn(f64, u64) + Send + 'static>>) {
         *DL_PROGRESS_CB.lock().unwrap() = cb;
     }
-
 
     /// Initialize WhisperContext with CUDA support
     #[cfg(feature = "cuda")]
@@ -46,14 +46,13 @@ impl WhisperTranscriber {
         }
 
         // Get the path again after potential download
-        let model_path = config::get_model_path(model_name).ok_or_else(|| 
-            format!("Failed to locate model file after download: {}", model_name)
-        )?;
+        let model_path = config::get_model_path(model_name)
+            .ok_or_else(|| format!("Failed to locate model file after download: {}", model_name))?;
 
         // Convert PathBuf to string for the whisper-rs functions
-        let model_path_str = model_path.to_str().ok_or_else(|| 
-            format!("Invalid UTF-8 in model path: {:?}", model_path)
-        )?;
+        let model_path_str = model_path
+            .to_str()
+            .ok_or_else(|| format!("Invalid UTF-8 in model path: {:?}", model_path))?;
 
         println!("Loading whisper model: {}", model_path_str);
         let start_time = std::time::Instant::now();
@@ -66,9 +65,12 @@ impl WhisperTranscriber {
                     let load_duration = start_time.elapsed();
                     println!("Model loaded with CUDA in {:.2?}", load_duration);
                     return Ok(WhisperTranscriber { context });
-                },
+                }
                 Err(e) => {
-                    println!("Failed to initialize with CUDA: {}. Falling back to CPU.", e);
+                    println!(
+                        "Failed to initialize with CUDA: {}. Falling back to CPU.",
+                        e
+                    );
                 }
             }
         }
@@ -114,35 +116,50 @@ impl WhisperTranscriber {
                         println!("Model downloaded successfully");
                     }
                     return Ok(());
-                },
+                }
                 Err(e) => {
                     last_error = e;
                     retry_count += 1;
                     if retry_count < max_retries {
-                        let wait_time = std::time::Duration::from_secs(2u64.pow(retry_count as u32));
-                        println!("Download attempt {} failed. Retrying in {} seconds...", 
-                                 retry_count, wait_time.as_secs());
+                        let wait_time =
+                            std::time::Duration::from_secs(2u64.pow(retry_count as u32));
+                        println!(
+                            "Download attempt {} failed. Retrying in {} seconds...",
+                            retry_count,
+                            wait_time.as_secs()
+                        );
                         std::thread::sleep(wait_time);
                     }
                 }
             }
         }
 
-        Err(format!("Failed to download model {} after {} attempts: {}", 
-                   model_name, max_retries, last_error))
+        Err(format!(
+            "Failed to download model {} after {} attempts: {}",
+            model_name, max_retries, last_error
+        ))
     }
 
     /// Helper function to download with retry logic
-    fn download_with_retry(client: &Client, url: &str, model_name: &str, attempt: usize) -> Result<(), String> {
+    fn download_with_retry(
+        client: &Client,
+        url: &str,
+        model_name: &str,
+        attempt: usize,
+    ) -> Result<(), String> {
         // Make a request to get the file
-        let mut response = client.get(url)
+        let mut response = client
+            .get(url)
             .send()
             .map_err(|e| format!("Failed to download model (attempt {}): {}", attempt + 1, e))?;
 
         // Check if the request was successful
         if !response.status().is_success() {
-            return Err(format!("Failed to download model (attempt {}): HTTP status {}", 
-                              attempt + 1, response.status()));
+            return Err(format!(
+                "Failed to download model (attempt {}): HTTP status {}",
+                attempt + 1,
+                response.status()
+            ));
         }
 
         // Get the content length for progress reporting
@@ -158,12 +175,12 @@ impl WhisperTranscriber {
         // Get the path where the model should be saved (in XDG data directory)
         let model_path = config::get_model_save_path(model_name)
             .map_err(|e| format!("Failed to determine model save path: {}", e))?;
-        
+
         println!("Saving model to: {}", model_path.display());
-        
+
         // Create the file
-        let mut file = File::create(&model_path)
-            .map_err(|e| format!("Failed to create model file: {}", e))?;
+        let mut file =
+            File::create(&model_path).map_err(|e| format!("Failed to create model file: {}", e))?;
 
         // Use a buffer to read the response in chunks
         let mut buffer = [0; 8192]; // 8KB buffer
@@ -193,9 +210,17 @@ impl WhisperTranscriber {
                 let now = Instant::now();
                 if now.duration_since(last_emit) >= emit_every || downloaded == total_size {
                     let elapsed = now.duration_since(start_time).as_secs_f64();
-                    let rate = if elapsed > 0.0 { downloaded as f64 / elapsed } else { 0.0 };
+                    let rate = if elapsed > 0.0 {
+                        downloaded as f64 / elapsed
+                    } else {
+                        0.0
+                    };
                     let remaining_bytes = (total_size.saturating_sub(downloaded)) as f64;
-                    let eta_secs = if rate > 0.0 { (remaining_bytes / rate).round() as u64 } else { 0 };
+                    let eta_secs = if rate > 0.0 {
+                        (remaining_bytes / rate).round() as u64
+                    } else {
+                        0
+                    };
                     let percent = (downloaded as f64 / total_size as f64) * 100.0;
 
                     if let Some(ref cb) = *DL_PROGRESS_CB.lock().unwrap() {

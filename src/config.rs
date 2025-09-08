@@ -1,8 +1,8 @@
-use std::fs;
-use std::path::{PathBuf};
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
+use std::fs;
 use std::io;
+use std::path::PathBuf;
 
 fn normalize_selected_model(model: &str) -> String {
     match model {
@@ -164,13 +164,13 @@ pub fn get_model_path(model_name: &str) -> Option<PathBuf> {
             return Some(xdg_path);
         }
     }
-    
+
     // Then check in current directory (for backward compatibility)
     let current_dir_path = PathBuf::from(model_name);
     if current_dir_path.exists() {
         return Some(current_dir_path);
     }
-    
+
     None
 }
 

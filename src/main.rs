@@ -1,24 +1,24 @@
-use std::sync::{Arc, Mutex};
-use std::thread;
+use fs2::FileExt;
+use lazy_static::lazy_static;
 use rdev::listen;
 use std::sync::mpsc::{channel, Sender};
-use lazy_static::lazy_static;
-use fs2::FileExt;
+use std::sync::{Arc, Mutex};
+use std::thread;
 
-mod tray_ui;
+mod app;
 mod audio_stream;
-mod whisper;
-mod keyboard_layout;
 mod clipboard_inserter;
 mod config;
-mod single_instance;
 mod hotkeys;
+mod keyboard_layout;
+mod single_instance;
 mod transcriber_utils;
-mod app;
+mod tray_ui;
+mod whisper;
 
 use audio_stream::AudioStream;
+use hotkeys::{handle_keyboard_event, KeyboardEvent, KEYBOARD_EVENT_SENDER};
 use whisper::WhisperTranscriber;
-use hotkeys::{KeyboardEvent, KEYBOARD_EVENT_SENDER, handle_keyboard_event};
 
 lazy_static! {
     static ref SELECTED_MODEL: Mutex<String> = Mutex::new(config::get_selected_model());
@@ -37,7 +37,11 @@ fn main() {
     let initial_translate = config::get_translate_enabled();
 
     // Initialize tray UI on the main thread
-    if let Err(e) = tray_ui::init_tray_icon(ui_intents_tx.clone(), initial_model.clone(), initial_translate) {
+    if let Err(e) = tray_ui::init_tray_icon(
+        ui_intents_tx.clone(),
+        initial_model.clone(),
+        initial_translate,
+    ) {
         eprintln!("Failed to initialize tray icon: {}", e);
     }
 
@@ -46,14 +50,14 @@ fn main() {
 
     // Initialize shared components
     let english_transcriber: Arc<Mutex<Option<WhisperTranscriber>>> = Arc::new(Mutex::new(None));
-    let multilingual_transcriber: Arc<Mutex<Option<WhisperTranscriber>>> = Arc::new(Mutex::new(None));
+    let multilingual_transcriber: Arc<Mutex<Option<WhisperTranscriber>>> =
+        Arc::new(Mutex::new(None));
 
     // Buffer to store recorded samples
     let recorded_samples = Arc::new(Mutex::new(Vec::new()));
 
     // Create an audio stream for microphone recording (owns internal capture gate)
-    let stream = AudioStream::new(recorded_samples.clone())
-        .expect("Failed to create audio stream");
+    let stream = AudioStream::new(recorded_samples.clone()).expect("Failed to create audio stream");
 
     // Create the application instance (status-driven, no external recording flag)
     let mut app = app::App::new(
