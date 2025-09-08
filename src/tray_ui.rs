@@ -3,7 +3,7 @@ use gtk::glib::{self, ControlFlow, Priority};
 #[cfg(feature = "tray-icon")]
 use gtk::prelude::*;
 #[cfg(feature = "tray-icon")]
-use gtk::{AboutDialog, CheckMenuItem, Menu, MenuItem, SeparatorMenuItem};
+use gtk::{AboutDialog, CheckMenuItem, Menu, MenuItem, SeparatorMenuItem, RadioMenuItem};
 #[cfg(feature = "tray-icon")]
 use libappindicator::{AppIndicator, AppIndicatorStatus};
 #[cfg(feature = "tray-icon")]
@@ -172,15 +172,36 @@ pub fn init_tray_icon(
     // Separator
     menu.append(&SeparatorMenuItem::new());
 
-    // Translate to English checkbox
-    let translate_item = CheckMenuItem::with_label("Translate to English");
-    translate_item.set_active(initial_translate);
+    // Transcription mode radio group
+    let transcribe_item = RadioMenuItem::with_label("Transcribe");
+    let translate_item = RadioMenuItem::with_label_from_widget(&transcribe_item, Some("Translate to English"));
+
+    // Set initial selection
+    if initial_translate {
+        translate_item.set_active(true);
+    } else {
+        transcribe_item.set_active(true);
+    }
+
+    {
+        let intents_tx_clone = intents_tx.clone();
+        // Only send when this item becomes active
+        transcribe_item.connect_toggled(move |item| {
+            if item.is_active() {
+                let _ = intents_tx_clone.send(UiIntent::ToggleTranslate(false));
+            }
+        });
+    }
     {
         let intents_tx_clone = intents_tx.clone();
         translate_item.connect_toggled(move |item| {
-            let _ = intents_tx_clone.send(UiIntent::ToggleTranslate(item.is_active()));
+            if item.is_active() {
+                let _ = intents_tx_clone.send(UiIntent::ToggleTranslate(true));
+            }
         });
     }
+
+    menu.append(&transcribe_item);
     menu.append(&translate_item);
 
     let about = MenuItem::with_label("About");
@@ -216,6 +237,7 @@ pub fn init_tray_icon(
         let indicator_for_rx = indicator.clone();
         let model_menu_item_for_rx = model_menu_item.clone();
         let translate_item_for_rx = translate_item.clone();
+        let transcribe_item_for_rx = transcribe_item.clone();
 
         rx.attach(None, move |view: AppView| {
             // Update icon based on status and translate mode
@@ -241,8 +263,12 @@ pub fn init_tray_icon(
                 }
             }
 
-            // Reflect translate toggle state in the checkbox
-            translate_item_for_rx.set_active(view.translate_enabled);
+            // Reflect translate mode in radio items
+            if view.translate_enabled {
+                translate_item_for_rx.set_active(true);
+            } else {
+                transcribe_item_for_rx.set_active(true);
+            }
 
             model_menu_item_for_rx.set_label(&top_label);
             ControlFlow::Continue
