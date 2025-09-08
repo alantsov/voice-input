@@ -19,7 +19,6 @@ mod app;
 use audio_stream::AudioStream;
 use whisper::WhisperTranscriber;
 use hotkeys::{KeyboardEvent, KEYBOARD_EVENT_SENDER, handle_keyboard_event};
-use transcriber_utils::download_base_models;
 
 lazy_static! {
     static ref SELECTED_MODEL: Mutex<String> = Mutex::new(config::get_selected_model());
@@ -42,7 +41,6 @@ fn main() {
         eprintln!("Failed to initialize tray icon: {}", e);
     }
 
-    download_base_models();
     println!("Press Ctrl+CAPSLOCK to start recording, release to save and insert transcript at cursor position");
     println!("Press Alt+CAPSLOCK to toggle between Transcription and Translation modes");
 

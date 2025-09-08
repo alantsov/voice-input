@@ -1,5 +1,5 @@
 use std::sync::{Arc, Mutex};
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::atomic::{AtomicU8, AtomicBool, Ordering};
 use std::sync::mpsc::Receiver;
 use std::thread;
 use std::time::Duration;
@@ -17,9 +17,12 @@ use crate::tray_ui::{ModelProgress, UiIntent};
 #[cfg(feature = "tray-icon")]
 use crate::tray_ui::{tray_post_view, AppView, TrayStatus};
 
+static PRIMING: AtomicBool = AtomicBool::new(false);
+
 // Public, app-wide status for logic/UI
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AppStatus {
+    Priming,
     Ready,
     Recording,
     Processing,
@@ -29,6 +32,7 @@ impl AppStatus {
     #[cfg(feature = "tray-icon")]
     fn to_tray(self) -> TrayStatus {
         match self {
+            AppStatus::Priming => TrayStatus::Priming,
             AppStatus::Ready => TrayStatus::Ready,
             AppStatus::Recording => TrayStatus::Recording,
             AppStatus::Processing => TrayStatus::Processing,
@@ -72,9 +76,9 @@ impl App {
     ) -> Self {
         Self {
             state: AppState {
-                status: AppStatus::Ready,
+                status: AppStatus::Ready, // will be adjusted below
                 current_language: String::from("en"),
-                active_model: initial_model,
+                active_model: initial_model.clone(),
                 loading: HashMap::new(),
                 english_transcriber,
                 multilingual_transcriber,
@@ -83,6 +87,25 @@ impl App {
                 translate_enabled: config::get_translate_enabled(),
             },
         }
+        .with_startup_status()
+    }
+
+    // Adjust initial status to Priming if the selected model (both en/multi) is missing
+    fn with_startup_status(mut self) -> Self {
+        let (en_file, multi_file) = get_both_model_filenames(&self.state.active_model);
+        let need_en = if self.state.active_model != "large" {
+            config::get_model_path(&en_file).is_none()
+        } else { false };
+        let need_multi = config::get_model_path(&multi_file).is_none();
+        let is_priming = need_en || need_multi;
+        if is_priming {
+            self.state.status = AppStatus::Priming;
+            PRIMING.store(true, Ordering::SeqCst);
+        } else {
+            self.state.status = AppStatus::Ready;
+            PRIMING.store(false, Ordering::SeqCst);
+        }
+        self
     }
 
     #[cfg(feature = "tray-icon")]
@@ -219,6 +242,11 @@ impl App {
     }
 
     pub fn run_loop(&mut self, kb_receiver: Receiver<KeyboardEvent>, ui_receiver: Receiver<UiIntent>) -> ! {
+        // Kick off initial ensure if we are priming
+        if PRIMING.load(Ordering::SeqCst) {
+            let model = self.state.active_model.clone();
+            self.ensure_model_async(model);
+        }
         #[cfg(feature = "tray-icon")]
         self.post_view();
 
@@ -334,7 +362,7 @@ impl App {
                     loading.insert(model_for_cb_clone.clone(), ModelProgress { percent: p, eta_secs });
                     let view = AppView {
                         active_model: model_for_cb_clone.clone(),
-                        status: TrayStatus::Ready, // status is independent of download
+                        status: if PRIMING.load(Ordering::SeqCst) { TrayStatus::Priming } else { TrayStatus::Ready },
                         loading,
                         translate_enabled: config::get_translate_enabled(),
                     };
@@ -355,6 +383,7 @@ impl App {
                 let _ = WhisperTranscriber::download_model(&multi_model_file);
             }
             WhisperTranscriber::set_download_progress_callback(None);
+            PRIMING.store(false, Ordering::SeqCst);
             #[cfg(feature = "tray-icon")]
             {
                 // Clear progress for the model

@@ -23,6 +23,7 @@ use lazy_static::lazy_static;
 #[cfg(feature = "tray-icon")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TrayStatus {
+    Priming,
     Ready,
     Recording,
     Processing,
@@ -62,9 +63,11 @@ lazy_static! {
 #[cfg(feature = "tray-icon")]
 fn icon_name_for_status(status: TrayStatus, translate: bool) -> &'static str {
     match (status, translate) {
+        (TrayStatus::Priming, false) => "voice-input-yellow",
         (TrayStatus::Ready, false) => "voice-input-white",
         (TrayStatus::Recording, false) => "voice-input-red",
         (TrayStatus::Processing, false) => "voice-input-blue",
+        (TrayStatus::Priming, true) => "voice-input-translate-yellow",
         (TrayStatus::Ready, true) => "voice-input-translate-white",
         (TrayStatus::Recording, true) => "voice-input-translate-red",
         (TrayStatus::Processing, true) => "voice-input-translate-blue",
@@ -243,7 +246,7 @@ pub fn tray_post_view(view: AppView) {
 // Stubs for non-tray builds
 #[cfg(not(feature = "tray-icon"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TrayStatus { Ready, Recording, Processing }
+pub enum TrayStatus { Priming, Ready, Recording, Processing }
 #[cfg(not(feature = "tray-icon"))]
 #[derive(Debug, Clone)]
 pub struct ModelProgress { pub percent: u8, pub eta_secs: u64 }
