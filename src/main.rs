@@ -17,7 +17,7 @@ mod tray_ui;
 mod whisper;
 
 use audio_stream::AudioStream;
-use hotkeys::{handle_keyboard_event, KeyboardEvent, KEYBOARD_EVENT_SENDER};
+use hotkeys::{handle_keyboard_event, KeyboardEvent, KEYBOARD_EVENT_SENDER, init_hotkeys_from_config};
 use whisper::WhisperTranscriber;
 
 lazy_static! {
@@ -45,8 +45,10 @@ fn main() {
         eprintln!("Failed to initialize tray icon: {}", e);
     }
 
-    println!("Press Ctrl+CAPSLOCK to start recording, release to save and insert transcript at cursor position");
-    println!("Press Alt+CAPSLOCK to toggle between Transcription and Translation modes");
+    let record_sc = config::get_record_shortcut();
+    let toggle_sc = config::get_change_mode_shortcut();
+    println!("Press {} to start recording, release to save and insert transcript at cursor position", record_sc);
+    println!("Press {} to toggle between Transcription and Translation modes", toggle_sc);
 
     // Initialize shared components
     let english_transcriber: Arc<Mutex<Option<WhisperTranscriber>>> = Arc::new(Mutex::new(None));
@@ -73,6 +75,9 @@ fn main() {
 
     // Store the sender in the global static
     *KEYBOARD_EVENT_SENDER.lock().unwrap() = Some(sender);
+
+    // Initialize hotkeys from config
+    init_hotkeys_from_config(record_sc.clone(), toggle_sc.clone());
 
     // Start listening for global keyboard events in a separate thread
     let _keyboard_thread = thread::spawn(move || {

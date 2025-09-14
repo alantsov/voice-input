@@ -123,6 +123,10 @@ fn keyval_to_pretty(keyval: gtk::gdk::keys::Key) -> Option<String> {
     }
     // F1..F24 and named keys via the Key's name
     if let Some(name) = keyval.name() {
+        // Some environments map CapsLock to ISO_Next_Group (layout switch). Normalize to CapsLock.
+        if name == "ISO_Next_Group" {
+            return Some("CapsLock".to_string());
+        }
         let mut s = name.replace('_', "");
         // Normalize casing for some common keys
         // Keep existing casing if it already contains uppercase letters
@@ -347,16 +351,29 @@ pub fn init_tray_icon(
                 change_entry.connect_changed(|e| {
                     let text = e.text().to_string();
                     let _ = crate::config::save_change_mode_shortcut(&text);
+                    // Refresh hotkeys in the listener immediately
+                    crate::hotkeys::init_hotkeys_from_config(
+                        crate::config::get_record_shortcut(),
+                        crate::config::get_change_mode_shortcut(),
+                    );
                 });
                 change_entry.connect_activate(|e| {
                     let text = e.text().to_string();
                     let _ = crate::config::save_change_mode_shortcut(&text);
+                    crate::hotkeys::init_hotkeys_from_config(
+                        crate::config::get_record_shortcut(),
+                        crate::config::get_change_mode_shortcut(),
+                    );
                 });
                 // Capture actual key presses to set shortcut
                 change_entry.connect_key_press_event(|e, ev| {
                     if let Some(accel) = format_shortcut_from_event(ev) {
                         e.set_text(&accel);
                         let _ = crate::config::save_change_mode_shortcut(&accel);
+                        crate::hotkeys::init_hotkeys_from_config(
+                            crate::config::get_record_shortcut(),
+                            crate::config::get_change_mode_shortcut(),
+                        );
                     }
                     true.into()
                 });
@@ -373,16 +390,28 @@ pub fn init_tray_icon(
                 record_entry.connect_changed(|e| {
                     let text = e.text().to_string();
                     let _ = crate::config::save_record_shortcut(&text);
+                    crate::hotkeys::init_hotkeys_from_config(
+                        crate::config::get_record_shortcut(),
+                        crate::config::get_change_mode_shortcut(),
+                    );
                 });
                 record_entry.connect_activate(|e| {
                     let text = e.text().to_string();
                     let _ = crate::config::save_record_shortcut(&text);
+                    crate::hotkeys::init_hotkeys_from_config(
+                        crate::config::get_record_shortcut(),
+                        crate::config::get_change_mode_shortcut(),
+                    );
                 });
                 // Capture actual key presses to set shortcut
                 record_entry.connect_key_press_event(|e, ev| {
                     if let Some(accel) = format_shortcut_from_event(ev) {
                         e.set_text(&accel);
                         let _ = crate::config::save_record_shortcut(&accel);
+                        crate::hotkeys::init_hotkeys_from_config(
+                            crate::config::get_record_shortcut(),
+                            crate::config::get_change_mode_shortcut(),
+                        );
                     }
                     true.into()
                 });
