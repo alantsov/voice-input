@@ -27,8 +27,10 @@ impl WhisperTranscriber {
     /// Initialize WhisperContext with CUDA support
     #[cfg(feature = "cuda")]
     fn init_with_cuda(model_path: &str) -> Result<WhisperContext, String> {
-        let temp_params = WhisperContextParameters::default();
-        let context = WhisperContext::new_with_params(model_path, temp_params)
+        let mut params = WhisperContextParameters::default();
+        // Explicitly enable GPU when requested; prevents accidental CPU fallback configs
+        params.use_gpu = true;
+        let context = WhisperContext::new_with_params(model_path, params)
             .map_err(|e| format!("Failed to create whisper context with CUDA: {}", e))?;
         Ok(context)
     }
@@ -76,7 +78,12 @@ impl WhisperTranscriber {
         }
 
         // CPU fallback or default path when CUDA is not enabled
-        let temp_params = WhisperContextParameters::default();
+        let mut temp_params = WhisperContextParameters::default();
+        // If compiled with CUDA but user selected CPU, make sure GPU is disabled
+        #[cfg(feature = "cuda")]
+        {
+            temp_params.use_gpu = false;
+        }
         let context = WhisperContext::new_with_params(model_path_str, temp_params)
             .map_err(|e| format!("Failed to create whisper context: {}", e))?;
 

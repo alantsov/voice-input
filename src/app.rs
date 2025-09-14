@@ -53,6 +53,7 @@ struct AppState {
     recorded_samples: Arc<Mutex<Vec<f32>>>,
     stream: AudioStream,
     translate_enabled: bool,
+    current_device: String,
 }
 
 fn detect_language_code() -> String {
@@ -88,6 +89,7 @@ impl App {
                 recorded_samples,
                 stream,
                 translate_enabled: config::get_translate_enabled(),
+                current_device: config::get_device(),
             },
         }
         .with_startup_status()
@@ -155,6 +157,22 @@ impl App {
 
         // Initialize Whisper after starting recording
         let is_english = language_code.starts_with("en");
+
+        // If compute device preference changed since last time, drop cached transcribers
+        let device_now = config::get_device();
+        if device_now != self.state.current_device {
+            println!(
+                "Compute device changed from '{}' to '{}'; reinitializing whisper contexts",
+                self.state.current_device, device_now
+            );
+            if let Ok(mut en) = self.state.english_transcriber.lock() {
+                *en = None;
+            }
+            if let Ok(mut ml) = self.state.multilingual_transcriber.lock() {
+                *ml = None;
+            }
+            self.state.current_device = device_now;
+        }
 
         // Resolve the model file based on selected model and language
         let model_file = select_model_file(&self.state.active_model, is_english);

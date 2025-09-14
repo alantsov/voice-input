@@ -24,26 +24,36 @@ pub fn insert_text(text: &str) {
         .set_text(text)
         .expect("Failed to set clipboard content");
 
-    // Small delay to ensure clipboard is updated
-    thread::sleep(Duration::from_millis(50));
+    // Give the system a moment to register new clipboard contents
+    thread::sleep(Duration::from_millis(120));
 
-    // Simulate Ctrl+V to paste using rdev
-    // Press Ctrl
-    let _ = simulate(&EventType::KeyPress(Key::ControlLeft));
-    // Press V
-    let _ = simulate(&EventType::KeyPress(Key::KeyV));
-    // Release V
-    let _ = simulate(&EventType::KeyRelease(Key::KeyV));
-    // Release Ctrl
+    // Best-effort: ensure common modifiers aren't left logically pressed
     let _ = simulate(&EventType::KeyRelease(Key::ControlLeft));
+    let _ = simulate(&EventType::KeyRelease(Key::ControlRight));
+    let _ = simulate(&EventType::KeyRelease(Key::ShiftLeft));
+    let _ = simulate(&EventType::KeyRelease(Key::ShiftRight));
+    let _ = simulate(&EventType::KeyRelease(Key::Alt));
 
-    // Small delay to ensure paste operation completes
-    thread::sleep(Duration::from_millis(50));
+    // Paste via Ctrl+V with small inter-event delays for reliability
+    paste_ctrl_v();
+
+    // Some apps (e.g., certain IDEs) evaluate the clipboard on key release; wait
+    thread::sleep(Duration::from_millis(350));
 
     // Restore original clipboard content if there was any
     if let Some(content) = original_content {
-        clipboard
-            .set_text(content)
-            .expect("Failed to restore clipboard content");
+        // A tiny delay to de-couple from paste completion in slow apps
+        thread::sleep(Duration::from_millis(50));
+        let _ = clipboard.set_text(content);
     }
+}
+
+fn paste_ctrl_v() {
+    let _ = simulate(&EventType::KeyPress(Key::ControlLeft));
+    thread::sleep(Duration::from_millis(20));
+    let _ = simulate(&EventType::KeyPress(Key::KeyV));
+    thread::sleep(Duration::from_millis(30));
+    let _ = simulate(&EventType::KeyRelease(Key::KeyV));
+    thread::sleep(Duration::from_millis(20));
+    let _ = simulate(&EventType::KeyRelease(Key::ControlLeft));
 }
