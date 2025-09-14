@@ -3,7 +3,7 @@ use gtk::glib::{self, ControlFlow, Priority};
 #[cfg(feature = "tray-icon")]
 use gtk::prelude::*;
 #[cfg(feature = "tray-icon")]
-use gtk::{AboutDialog, CheckMenuItem, Menu, MenuItem, SeparatorMenuItem, RadioMenuItem, Window, Label, WindowType};
+use gtk::{AboutDialog, CheckMenuItem, Menu, MenuItem, SeparatorMenuItem, RadioMenuItem, Window, Label, WindowType, Box as GtkBox, Orientation, RadioButton};
 #[cfg(feature = "tray-icon")]
 use libappindicator::{AppIndicator, AppIndicatorStatus};
 #[cfg(feature = "tray-icon")]
@@ -185,17 +185,66 @@ pub fn init_tray_icon(
                 win.present();
                 return;
             }
-            // Create a simple settings window with placeholder content
+            // Create settings window
             let win = Window::new(WindowType::Toplevel);
             win.set_title("Voice Input Settings");
-            win.set_default_size(420, 320);
-            // Placeholder content
-            let label = Label::new(Some("Settings will go here.\n(Placeholder)"));
-            label.set_margin_top(12);
-            label.set_margin_bottom(12);
-            label.set_margin_start(12);
-            label.set_margin_end(12);
-            win.add(&label);
+            win.set_default_size(420, 200);
+
+            // Build content
+            let vbox = GtkBox::new(Orientation::Vertical, 8);
+            vbox.set_margin_top(12);
+            vbox.set_margin_bottom(12);
+            vbox.set_margin_start(12);
+            vbox.set_margin_end(12);
+
+            // Title/description
+            let title = Label::new(Some("Whisper compute device (CPU/GPU)"));
+            title.set_halign(gtk::Align::Start);
+            vbox.pack_start(&title, false, false, 0);
+
+            let subtitle = Label::new(Some("Select which device runs Whisper transcription. GPU requires CUDA build."));
+            subtitle.set_halign(gtk::Align::Start);
+            vbox.pack_start(&subtitle, false, false, 0);
+
+            // Radio buttons for CPU/GPU
+            let rb_cpu = RadioButton::with_label("CPU");
+            let rb_gpu = RadioButton::with_label_from_widget(&rb_cpu, "GPU (CUDA)");
+
+            // Initial state from config
+            let use_gpu_now = crate::config::use_gpu();
+            rb_gpu.set_active(use_gpu_now);
+            rb_cpu.set_active(!use_gpu_now);
+
+            // Disable GPU option if not built with CUDA
+            #[cfg(not(feature = "cuda"))]
+            {
+                rb_gpu.set_sensitive(false);
+                let note = Label::new(Some("Built without CUDA; GPU unavailable (CPU will be used)."));
+                note.set_halign(gtk::Align::Start);
+                vbox.pack_start(&note, false, false, 0);
+            }
+
+            // Save handlers
+            {
+                let rb_cpu_clone = rb_cpu.clone();
+                rb_cpu.connect_toggled(move |btn| {
+                    if btn.is_active() {
+                        let _ = crate::config::save_device("cpu");
+                        // Ensure mutual exclusivity visually
+                        rb_cpu_clone.set_active(true);
+                    }
+                });
+            }
+            rb_gpu.connect_toggled(move |btn| {
+                if btn.is_active() {
+                    let _ = crate::config::save_device("gpu");
+                }
+            });
+
+            vbox.pack_start(&rb_cpu, false, false, 0);
+            vbox.pack_start(&rb_gpu, false, false, 0);
+
+            win.add(&vbox);
 
             // Keep singleton reference; clear it on destroy
             let settings_window_rc2 = settings_window_rc.clone();

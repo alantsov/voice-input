@@ -57,9 +57,9 @@ impl WhisperTranscriber {
         println!("Loading whisper model: {}", model_path_str);
         let start_time = std::time::Instant::now();
 
-        // Create context with CUDA support when available
+        // Create context with CUDA support when available and selected in config
         #[cfg(feature = "cuda")]
-        {
+        if config::use_gpu() {
             match Self::init_with_cuda(model_path_str) {
                 Ok(context) => {
                     let load_duration = start_time.elapsed();

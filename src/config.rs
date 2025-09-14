@@ -20,6 +20,18 @@ pub struct Config {
     /// Whether to translate (to English) instead of transcribe
     #[serde(default)]
     pub translate: bool,
+
+    /// Compute device preference for whisper: "cpu" or "gpu" (gpu requires cuda build)
+    #[serde(default = "default_device")] 
+    pub device: String,
+}
+
+fn default_device() -> String {
+    if cfg!(feature = "cuda") {
+        "gpu".to_string()
+    } else {
+        "cpu".to_string()
+    }
 }
 
 impl Default for Config {
@@ -27,6 +39,7 @@ impl Default for Config {
         Self {
             selected_model: "small".to_string(),
             translate: false,
+            device: default_device(),
         }
     }
 }
@@ -150,6 +163,42 @@ pub fn save_translate_enabled(translate: bool) -> io::Result<()> {
 /// Get the translate flag
 pub fn get_translate_enabled() -> bool {
     load_config().translate
+}
+
+/// Save just the compute device ("cpu" or "gpu"). When built without CUDA, always saves/returns "cpu".
+pub fn save_device(device: &str) -> io::Result<()> {
+    let mut cfg = load_config();
+    let dev = device.to_lowercase();
+    let normalized = match dev.as_str() {
+        "gpu" => "gpu",
+        _ => "cpu",
+    };
+    // If cuda feature is not enabled, force cpu regardless of requested value
+    let final_dev = if cfg!(feature = "cuda") {
+        normalized
+    } else {
+        "cpu"
+    };
+    cfg.device = final_dev.to_string();
+    save_config(&cfg)
+}
+
+/// Get the compute device string ("cpu" or "gpu"). When built without CUDA, always "cpu".
+pub fn get_device() -> String {
+    let cfg = load_config();
+    if cfg!(feature = "cuda") {
+        match cfg.device.to_lowercase().as_str() {
+            "gpu" => "gpu".to_string(),
+            _ => "cpu".to_string(),
+        }
+    } else {
+        "cpu".to_string()
+    }
+}
+
+/// Convenience: whether GPU acceleration should be used in this build
+pub fn use_gpu() -> bool {
+    cfg!(feature = "cuda") && matches!(get_device().as_str(), "gpu")
 }
 
 /// Get the full path for a model file
