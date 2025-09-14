@@ -24,6 +24,14 @@ pub struct Config {
     /// Compute device preference for whisper: "cpu" or "gpu" (gpu requires cuda build)
     #[serde(default = "default_device")] 
     pub device: String,
+
+    /// Shortcut to toggle between translate and transcribe modes
+    #[serde(default = "default_change_mode_shortcut")]
+    pub change_mode_shortcut: String,
+
+    /// Shortcut to start/stop recording
+    #[serde(default = "default_record_shortcut")]
+    pub record_shortcut: String,
 }
 
 fn default_device() -> String {
@@ -40,6 +48,8 @@ impl Default for Config {
             selected_model: "small".to_string(),
             translate: false,
             device: default_device(),
+            change_mode_shortcut: default_change_mode_shortcut(),
+            record_shortcut: default_record_shortcut(),
         }
     }
 }
@@ -228,4 +238,37 @@ pub fn get_model_path(model_name: &str) -> Option<PathBuf> {
 pub fn get_model_save_path(model_name: &str) -> io::Result<PathBuf> {
     let models_dir = ensure_models_dir()?;
     Ok(models_dir.join(model_name))
+}
+
+
+fn default_change_mode_shortcut() -> String {
+    "Alt+CapsLock".to_string()
+}
+
+fn default_record_shortcut() -> String {
+    "Ctrl+CapsLock".to_string()
+}
+
+/// Save the change-mode shortcut string
+pub fn save_change_mode_shortcut(shortcut: &str) -> io::Result<()> {
+    let mut cfg = load_config();
+    cfg.change_mode_shortcut = shortcut.to_string();
+    save_config(&cfg)
+}
+
+/// Get the change-mode shortcut string
+pub fn get_change_mode_shortcut() -> String {
+    load_config().change_mode_shortcut
+}
+
+/// Save the record shortcut string
+pub fn save_record_shortcut(shortcut: &str) -> io::Result<()> {
+    let mut cfg = load_config();
+    cfg.record_shortcut = shortcut.to_string();
+    save_config(&cfg)
+}
+
+/// Get the record shortcut string
+pub fn get_record_shortcut() -> String {
+    load_config().record_shortcut
 }

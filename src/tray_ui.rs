@@ -3,7 +3,9 @@ use gtk::glib::{self, ControlFlow, Priority};
 #[cfg(feature = "tray-icon")]
 use gtk::prelude::*;
 #[cfg(feature = "tray-icon")]
-use gtk::{AboutDialog, CheckMenuItem, Menu, MenuItem, SeparatorMenuItem, RadioMenuItem, Window, Label, WindowType, Box as GtkBox, Orientation, RadioButton};
+use gtk::{AboutDialog, CheckMenuItem, Menu, MenuItem, SeparatorMenuItem, RadioMenuItem, Window, Label, WindowType, Box as GtkBox, Orientation, RadioButton, Entry};
+#[cfg(feature = "tray-icon")]
+use gtk::gdk::{self, ModifierType};
 #[cfg(feature = "tray-icon")]
 use libappindicator::{AppIndicator, AppIndicatorStatus};
 #[cfg(feature = "tray-icon")]
@@ -84,6 +86,92 @@ fn format_eta(secs: u64) -> String {
     } else {
         format!("{:02}:{:02}", minutes, seconds)
     }
+}
+
+#[cfg(feature = "tray-icon")]
+fn is_modifier_keyval(keyval: gtk::gdk::keys::Key) -> bool {
+    use gtk::gdk::keys::constants as key;
+    matches!(
+        keyval,
+        key::Shift_L
+            | key::Shift_R
+            | key::Control_L
+            | key::Control_R
+            | key::Alt_L
+            | key::Alt_R
+            | key::Meta_L
+            | key::Meta_R
+            | key::Super_L
+            | key::Super_R
+            | key::Hyper_L
+            | key::Hyper_R
+            | key::ISO_Level3_Shift
+            | key::ISO_Level5_Shift
+    )
+}
+
+#[cfg(feature = "tray-icon")]
+fn keyval_to_pretty(keyval: gtk::gdk::keys::Key) -> Option<String> {
+    // Letters: make uppercase single letter
+    if let Some(ch) = keyval.to_unicode() {
+        if ch.is_ascii_alphabetic() {
+            return Some(ch.to_ascii_uppercase().to_string());
+        }
+        if ch.is_ascii_digit() {
+            return Some(ch.to_string());
+        }
+    }
+    // F1..F24 and named keys via the Key's name
+    if let Some(name) = keyval.name() {
+        let mut s = name.replace('_', "");
+        // Normalize casing for some common keys
+        // Keep existing casing if it already contains uppercase letters
+        if s.chars().all(|c| c.is_lowercase()) {
+            // Capitalize first
+            if let Some(first) = s.get(..1) {
+                s = first.to_uppercase() + s.get(1..).unwrap_or("");
+            }
+        }
+        // A few aliases
+        match s.as_str() {
+            "Return" => s = "Enter".to_string(),
+            "Escape" => s = "Esc".to_string(),
+            _ => {}
+        }
+        return Some(s);
+    }
+    None
+}
+
+#[cfg(feature = "tray-icon")]
+fn format_shortcut_from_event(event: &gdk::EventKey) -> Option<String> {
+    let keyval = event.keyval();
+    if is_modifier_keyval(keyval) {
+        return None;
+    }
+    let state = event.state();
+    let mut parts: Vec<&'static str> = Vec::new();
+    if state.contains(ModifierType::CONTROL_MASK) {
+        parts.push("Ctrl");
+    }
+    if state.contains(ModifierType::MOD1_MASK) {
+        parts.push("Alt");
+    }
+    if state.contains(ModifierType::SUPER_MASK) {
+        parts.push("Super");
+    }
+    if state.contains(ModifierType::SHIFT_MASK) {
+        parts.push("Shift");
+    }
+    let key_str = keyval_to_pretty(keyval)?;
+    // Avoid duplicate Shift for characters that inherently require Shift (like '!' etc.)
+    // We keep it simple: always include Shift if pressed.
+    let mut out = parts.join("+");
+    if !out.is_empty() {
+        out.push('+');
+    }
+    out.push_str(&key_str);
+    Some(out)
 }
 
 #[cfg(feature = "tray-icon")]
@@ -243,6 +331,64 @@ pub fn init_tray_icon(
 
             vbox.pack_start(&rb_cpu, false, false, 0);
             vbox.pack_start(&rb_gpu, false, false, 0);
+
+            // Shortcuts section (UI only; not yet used by app logic)
+            let shortcuts_title = Label::new(Some("Shortcuts"));
+            shortcuts_title.set_halign(gtk::Align::Start);
+            vbox.pack_start(&shortcuts_title, false, false, 6);
+
+            // Change mode shortcut
+            let change_label = Label::new(Some("Toggle translate/transcribe:"));
+            change_label.set_halign(gtk::Align::Start);
+            let change_entry = Entry::new();
+            change_entry.set_text(&crate::config::get_change_mode_shortcut());
+            {
+                // Save when text manually edited
+                change_entry.connect_changed(|e| {
+                    let text = e.text().to_string();
+                    let _ = crate::config::save_change_mode_shortcut(&text);
+                });
+                change_entry.connect_activate(|e| {
+                    let text = e.text().to_string();
+                    let _ = crate::config::save_change_mode_shortcut(&text);
+                });
+                // Capture actual key presses to set shortcut
+                change_entry.connect_key_press_event(|e, ev| {
+                    if let Some(accel) = format_shortcut_from_event(ev) {
+                        e.set_text(&accel);
+                        let _ = crate::config::save_change_mode_shortcut(&accel);
+                    }
+                    true.into()
+                });
+            }
+            vbox.pack_start(&change_label, false, false, 0);
+            vbox.pack_start(&change_entry, false, false, 0);
+
+            // Record shortcut
+            let record_label = Label::new(Some("Start/stop recording:"));
+            record_label.set_halign(gtk::Align::Start);
+            let record_entry = Entry::new();
+            record_entry.set_text(&crate::config::get_record_shortcut());
+            {
+                record_entry.connect_changed(|e| {
+                    let text = e.text().to_string();
+                    let _ = crate::config::save_record_shortcut(&text);
+                });
+                record_entry.connect_activate(|e| {
+                    let text = e.text().to_string();
+                    let _ = crate::config::save_record_shortcut(&text);
+                });
+                // Capture actual key presses to set shortcut
+                record_entry.connect_key_press_event(|e, ev| {
+                    if let Some(accel) = format_shortcut_from_event(ev) {
+                        e.set_text(&accel);
+                        let _ = crate::config::save_record_shortcut(&accel);
+                    }
+                    true.into()
+                });
+            }
+            vbox.pack_start(&record_label, false, false, 0);
+            vbox.pack_start(&record_entry, false, false, 0);
 
             win.add(&vbox);
 
