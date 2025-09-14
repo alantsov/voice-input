@@ -3,7 +3,7 @@ use gtk::glib::{self, ControlFlow, Priority};
 #[cfg(feature = "tray-icon")]
 use gtk::prelude::*;
 #[cfg(feature = "tray-icon")]
-use gtk::{AboutDialog, CheckMenuItem, Menu, MenuItem, SeparatorMenuItem, RadioMenuItem};
+use gtk::{AboutDialog, CheckMenuItem, Menu, MenuItem, SeparatorMenuItem, RadioMenuItem, Window, Label, WindowType};
 #[cfg(feature = "tray-icon")]
 use libappindicator::{AppIndicator, AppIndicatorStatus};
 #[cfg(feature = "tray-icon")]
@@ -140,6 +140,9 @@ pub fn init_tray_icon(
 
     let mut menu = Menu::new();
 
+    // Settings window holder (singleton)
+    let settings_window: Rc<RefCell<Option<Window>>> = Rc::new(RefCell::new(None));
+
     // Model submenu
     let model_menu_item = MenuItem::with_label(&format!("Model: {}", initial_model));
     let model_menu = Menu::new();
@@ -168,6 +171,44 @@ pub fn init_tray_icon(
 
     model_menu_item.set_submenu(Some(&model_menu));
     menu.append(&model_menu_item);
+
+    // Separator
+    menu.append(&SeparatorMenuItem::new());
+
+    // Settings item
+    let settings_item = MenuItem::with_label("Settings");
+    {
+        let settings_window_rc = settings_window.clone();
+        settings_item.connect_activate(move |_| {
+            // If already created, just present it
+            if let Some(ref win) = *settings_window_rc.borrow() {
+                win.present();
+                return;
+            }
+            // Create a simple settings window with placeholder content
+            let win = Window::new(WindowType::Toplevel);
+            win.set_title("Voice Input Settings");
+            win.set_default_size(420, 320);
+            // Placeholder content
+            let label = Label::new(Some("Settings will go here.\n(Placeholder)"));
+            label.set_margin_top(12);
+            label.set_margin_bottom(12);
+            label.set_margin_start(12);
+            label.set_margin_end(12);
+            win.add(&label);
+
+            // Keep singleton reference; clear it on destroy
+            let settings_window_rc2 = settings_window_rc.clone();
+            win.connect_destroy(move |_| {
+                *settings_window_rc2.borrow_mut() = None;
+            });
+
+            *settings_window_rc.borrow_mut() = Some(win.clone());
+            win.show_all();
+            win.present();
+        });
+    }
+    menu.append(&settings_item);
 
     // Separator
     menu.append(&SeparatorMenuItem::new());
