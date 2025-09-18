@@ -19,11 +19,6 @@ mod whisper;
 use audio_stream::AudioStream;
 use hotkeys::{handle_keyboard_event, KeyboardEvent, KEYBOARD_EVENT_SENDER, init_hotkeys_from_config};
 
-lazy_static! {
-    static ref SELECTED_MODEL: Mutex<String> = Mutex::new(config::get_selected_model());
-    static ref MODEL_LOADING: Mutex<bool> = Mutex::new(false);
-}
-
 fn main() {
     // keep the lock alive for the entire program
     let _instance_lock = single_instance::ensure_single_instance();
