@@ -18,7 +18,6 @@ mod whisper;
 
 use audio_stream::AudioStream;
 use hotkeys::{handle_keyboard_event, KeyboardEvent, KEYBOARD_EVENT_SENDER, init_hotkeys_from_config};
-use whisper::WhisperTranscriber;
 
 lazy_static! {
     static ref SELECTED_MODEL: Mutex<String> = Mutex::new(config::get_selected_model());
@@ -50,11 +49,6 @@ fn main() {
     println!("Press {} to start recording, release to save and insert transcript at cursor position", record_sc);
     println!("Press {} to toggle between Transcription and Translation modes", toggle_sc);
 
-    // Initialize shared components
-    let english_transcriber: Arc<Mutex<Option<WhisperTranscriber>>> = Arc::new(Mutex::new(None));
-    let multilingual_transcriber: Arc<Mutex<Option<WhisperTranscriber>>> =
-        Arc::new(Mutex::new(None));
-
     // Buffer to store recorded samples
     let recorded_samples = Arc::new(Mutex::new(Vec::new()));
 
@@ -65,8 +59,6 @@ fn main() {
     let mut app = app::App::new(
         stream,
         recorded_samples,
-        english_transcriber,
-        multilingual_transcriber,
         initial_model.clone(),
     );
 

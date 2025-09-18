@@ -74,10 +74,11 @@ impl App {
     pub fn new(
         stream: AudioStream,
         recorded_samples: Arc<Mutex<Vec<f32>>>,
-        english_transcriber: Arc<Mutex<Option<WhisperTranscriber>>>,
-        multilingual_transcriber: Arc<Mutex<Option<WhisperTranscriber>>>,
         initial_model: String,
     ) -> Self {
+        let english_transcriber: Arc<Mutex<Option<WhisperTranscriber>>> = Arc::new(Mutex::new(None));
+        let multilingual_transcriber: Arc<Mutex<Option<WhisperTranscriber>>> =
+            Arc::new(Mutex::new(None));
         Self {
             state: AppState {
                 status: AppStatus::Ready, // will be adjusted below
