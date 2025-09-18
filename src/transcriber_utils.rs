@@ -112,27 +112,3 @@ pub fn translate_samples_with(
         Err("Transcriber is not available".to_string())
     }
 }
-
-/// Download base models during startup if they are missing.
-pub fn download_base_models() {
-    let english_model = "ggml-base.en.bin";
-    let multilingual_model = "ggml-base.bin";
-
-    println!("Downloading base models...");
-
-    // Download English model if it doesn't exist
-    if config::get_model_path(english_model).is_none() {
-        println!("Downloading English model...");
-        if let Err(e) = WhisperTranscriber::download_model(english_model) {
-            eprintln!("Failed to download English model: {}", e);
-        }
-    }
-
-    // Download multilingual model if it doesn't exist
-    if config::get_model_path(multilingual_model).is_none() {
-        println!("Downloading multilingual model...");
-        if let Err(e) = WhisperTranscriber::download_model(multilingual_model) {
-            eprintln!("Failed to download multilingual model: {}", e);
-        }
-    }
-}
