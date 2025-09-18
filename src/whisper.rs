@@ -445,4 +445,22 @@ impl WhisperTranscriber {
 
         Ok(resampled)
     }
+
+    /// For CUDA builds: force a device reset to release GPU memory held by CUDA contexts/caches.
+    #[cfg(feature = "cuda")]
+    pub fn free_cuda_vram() {
+        unsafe {
+            // Declare the CUDA runtime functions locally to avoid global externs.
+            extern "C" {
+                fn cudaDeviceSynchronize() -> i32;
+                fn cudaDeviceReset() -> i32;
+            }
+            // Best-effort sync then reset; ignore return codes except for logging.
+            let _ = cudaDeviceSynchronize();
+            let rc = cudaDeviceReset();
+            if rc != 0 {
+                eprintln!("cudaDeviceReset returned error code {}", rc);
+            }
+        }
+    }
 }

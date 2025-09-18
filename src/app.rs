@@ -266,6 +266,32 @@ impl App {
                     eprintln!("{}", e);
                 }
             }
+
+                // After processing, free resources. When using CUDA/GPU, also reset the device to reclaim VRAM.
+                #[cfg(feature = "cuda")]
+                {
+                    if config::use_gpu() {
+                        // Drop only the one we used
+                        crate::transcriber_utils::cleanup_transcriber(transcriber);
+                        // Force CUDA device reset to release remaining allocations/caches
+                        WhisperTranscriber::free_cuda_vram();
+                    }
+                }
+                #[cfg(not(feature = "cuda"))]
+                {
+                    // On CPU builds, just drop the transcriber if you also want to reclaim RAM
+                    // (optional; no-op if you prefer to keep it cached for performance).
+                    // crate::transcriber_utils::cleanup_transcriber(transcriber);
+                }
+
+            // After processing, free GPU VRAM by dropping the transcriber (when using CUDA/GPU).
+            #[cfg(feature = "cuda")]
+            {
+                if config::use_gpu() {
+                    // Drop only the one we used
+                    crate::transcriber_utils::cleanup_transcriber(transcriber);
+                }
+            }
         }
 
         // Back to ready

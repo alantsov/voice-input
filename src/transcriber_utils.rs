@@ -112,3 +112,12 @@ pub fn translate_samples_with(
         Err("Transcriber is not available".to_string())
     }
 }
+
+/// Explicitly drop the transcriber to free its underlying resources (including GPU VRAM if CUDA is used).
+pub fn cleanup_transcriber(transcriber: &Arc<Mutex<Option<WhisperTranscriber>>>) {
+    if let Ok(mut guard) = transcriber.lock() {
+        // Dropping WhisperTranscriber drops WhisperContext and releases associated memory/VRAM.
+        *guard = None;
+    }
+}
+
