@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Build a CPU-only Debian package for voice-input (no CUDA, no GTK tray)
-# Result: ../voice-input_<version>_amd64_cpu.deb
+# Result: dist/voice-input_<version>_amd64_cpu.deb
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
@@ -88,7 +88,9 @@ chmod 0755 "$DEBIAN_DIR"
 find "$DEBIAN_DIR" -type f -exec chmod 0644 {} +
 
 # Build the .deb
-OUT_PATH="../voice-input_${VERSION}_amd64_cpu.deb"
+OUT_DIR="dist"
+mkdir -p "$OUT_DIR"
+OUT_PATH="$OUT_DIR/voice-input_${VERSION}_amd64_cpu.deb"
 echo "Building package: $OUT_PATH"
 fakeroot dpkg-deb --build "$PKG_DIR" "$OUT_PATH"
 

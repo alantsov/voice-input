@@ -7,3 +7,4 @@ ggml*.bin
 /.idea
 /build
 /debian/.debhelper/voice-input/dbgsym-root
+/dist
