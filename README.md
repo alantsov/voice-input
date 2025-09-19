@@ -197,3 +197,32 @@ Notes:
 - The release workflow builds on Ubuntu and produces an amd64 .deb. Installation example:
   sudo dpkg -i <downloaded_deb_file>
   sudo apt-get -f install  # fix any missing dependencies
+
+
+## Regenerating Icons
+
+The app icons are generated from a single SVG source and produced in multiple sizes and color variants for the hicolor icon theme.
+
+- Source SVG: assets/icon-src/voice-input.svg
+- Generator script: scripts/voice_input_asset_generator.sh
+- Output directories: assets/icons/hicolor/
+  - PNGs: assets/icons/hicolor/{16x16,22x22,24x24,32x32,48x48}/apps/
+  - SVGs (scalable): assets/icons/hicolor/scalable/apps/
+- Variants generated:
+  - Base: voice-input-{blue,red,yellow,white}.{svg,png}
+  - Translate (with "T"): voice-input-translate-{blue,red,yellow,white}.{svg,png}
+
+Prerequisites (one of the following is required):
+- rsvg-convert (from librsvg)
+- or Inkscape (1.0+)
+
+How to run (from repo root or any directory):
+
+```bash
+bash scripts/voice_input_asset_generator.sh
+```
+
+Notes:
+- The script resolves paths relative to the repository; it works regardless of your current working directory.
+- To change the color palette or sizes, edit the COLORS map and SIZES array inside scripts/voice_input_asset_generator.sh.
+- Debian packaging and desktop files expect icons under assets/icons/hicolor/; keep the output paths unchanged unless you also update packaging/install rules.

@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Resolve script and repo roots
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
 # Configuration
-SRC_SVG="voice-input.svg"
-OUT_ROOT="assets/icons/hicolor"
+SRC_SVG="$REPO_ROOT/assets/icon-src/voice-input.svg"
+OUT_ROOT="$REPO_ROOT/assets/icons/hicolor"
 SIZES=(16 22 24 32 48)
 
 # Define your state colors (hex). Adjust to your palette if needed.
