@@ -5,9 +5,9 @@ Version: 0.1.7-1
 Auto-Built-Package: debug-symbols
 Architecture: amd64
 Maintainer: System Administrator <admin@example.com>
-Installed-Size: 2649
+Installed-Size: 2658
 Depends: voice-input (= 0.1.7-1)
 Section: debug
 Priority: optional
 Description: debug symbols for voice-input
-Build-Ids: 75df04dadb0f901214ac129ea34541294bbb5ee4
+Build-Ids: 3fd3e1c80cd2bad6b27e126eb244d321a108e8d6

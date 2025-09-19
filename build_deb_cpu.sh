@@ -46,10 +46,10 @@ mkdir -p "$DEBIAN_DIR" "$BIN_DIR" "$APPS_DIR" "$ICONS_DIR" "$AUTOSTART_DIR"
 install -m 0755 "$BIN_PATH" "$BIN_DIR/voice-input"
 
 # Install desktop entry (if present)
-if [[ -f "voice-input.desktop" ]]; then
-  install -m 0644 "voice-input.desktop" "$APPS_DIR/voice-input.desktop"
+if [[ -f "assets/desktop/voice-input.desktop" ]]; then
+  install -m 0644 "assets/desktop/voice-input.desktop" "$APPS_DIR/voice-input.desktop"
   # Also provide autostart entry
-  install -m 0644 "voice-input.desktop" "$AUTOSTART_DIR/voice-input.desktop"
+  install -m 0644 "assets/desktop/voice-input.desktop" "$AUTOSTART_DIR/voice-input.desktop"
 fi
 
 # Install icons from assets (if present)
