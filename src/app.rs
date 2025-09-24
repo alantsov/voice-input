@@ -138,9 +138,16 @@ impl App {
         #[cfg(feature = "tray-icon")]
         self.post_view();
 
-        // Detect and store language code
-        let language_code = detect_language_code();
-        println!("Detected language code: {}", language_code);
+        // Determine language for this recording based on user preference in config
+        let pref = config::get_language_preference();
+        let language_code = if pref == "default" {
+            let code = detect_language_code();
+            println!("Detected language code: {}", code);
+            code
+        } else {
+            println!("Using language from preferences: {}", pref);
+            pref
+        };
         self.state.current_language = language_code.clone();
 
         // Clear previous recording
