@@ -469,6 +469,45 @@ pub fn init_tray_icon(
     menu.append(&transcribe_item);
     menu.append(&translate_item);
 
+    // Separator before language preference
+    menu.append(&SeparatorMenuItem::new());
+
+    // Language preference radio group (UI-only; not used during transcription)
+    let lang_default = RadioMenuItem::with_label("Default language (detected from keyboard layout)");
+    let lang_ru = RadioMenuItem::with_label_from_widget(&lang_default, Some("Russian language"));
+    let lang_en = RadioMenuItem::with_label_from_widget(&lang_default, Some("English language"));
+
+    // Initial selection from config
+    match crate::config::get_language_preference().as_str() {
+        "ru" => lang_ru.set_active(true),
+        "en" => lang_en.set_active(true),
+        _ => lang_default.set_active(true),
+    }
+
+    // Save on change (only when item becomes active)
+    lang_default.connect_toggled(|item| {
+        if item.is_active() {
+            let _ = crate::config::save_language_preference("default");
+        }
+    });
+    lang_ru.connect_toggled(|item| {
+        if item.is_active() {
+            let _ = crate::config::save_language_preference("ru");
+        }
+    });
+    lang_en.connect_toggled(|item| {
+        if item.is_active() {
+            let _ = crate::config::save_language_preference("en");
+        }
+    });
+
+    menu.append(&lang_default);
+    menu.append(&lang_ru);
+    menu.append(&lang_en);
+
+    // Separator after language preference
+    menu.append(&SeparatorMenuItem::new());
+
     let about = MenuItem::with_label("About");
     about.connect_activate(|_| {
         let dialog = AboutDialog::new();

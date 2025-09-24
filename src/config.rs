@@ -32,6 +32,10 @@ pub struct Config {
     /// Shortcut to start/stop recording
     #[serde(default = "default_record_shortcut")]
     pub record_shortcut: String,
+
+    /// Preferred input language selection for UI: "default" (keyboard), "ru", or "en"
+    #[serde(default = "default_language_preference")]
+    pub language_preference: String,
 }
 
 fn default_device() -> String {
@@ -39,6 +43,18 @@ fn default_device() -> String {
         "gpu".to_string()
     } else {
         "cpu".to_string()
+    }
+}
+
+fn default_language_preference() -> String {
+    "default".to_string()
+}
+
+fn normalize_language_preference(pref: &str) -> &'static str {
+    match pref.to_lowercase().as_str() {
+        "en" => "en",
+        "ru" => "ru",
+        _ => "default",
     }
 }
 
@@ -50,6 +66,7 @@ impl Default for Config {
             device: default_device(),
             change_mode_shortcut: default_change_mode_shortcut(),
             record_shortcut: default_record_shortcut(),
+            language_preference: default_language_preference(),
         }
     }
 }
@@ -271,4 +288,16 @@ pub fn save_record_shortcut(shortcut: &str) -> io::Result<()> {
 /// Get the record shortcut string
 pub fn get_record_shortcut() -> String {
     load_config().record_shortcut
+}
+
+/// Save the preferred language selection ("default", "ru", or "en")
+pub fn save_language_preference(pref: &str) -> io::Result<()> {
+    let mut cfg = load_config();
+    cfg.language_preference = normalize_language_preference(pref).to_string();
+    save_config(&cfg)
+}
+
+/// Get the preferred language selection ("default", "ru", or "en")
+pub fn get_language_preference() -> String {
+    normalize_language_preference(&load_config().language_preference).to_string()
 }
