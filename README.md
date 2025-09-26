@@ -1,207 +1,49 @@
-# Voice Input Application
-
-A simple application for recording voice input using the microphone.
-
-## Features
-
-- Press Ctrl+CAPSLOCK to start recording, release to save
-- Recordings are saved as WAV files with timestamps
-- Transcribes audio and inserts text at cursor position
-- Uses GPU acceleration for faster transcription when available
-- Optional system tray icon support
-- Single instance enforcement (prevents multiple instances from running simultaneously)
-
-## Building
-
-### Basic Build (No System Tray Icon)
-
-```bash
-cargo build
-```
-
-This will build the application without the system tray icon, which is useful if you don't have the GTK/ATK dependencies installed.
-
-### Build with System Tray Icon
-
-```bash
-cargo build --features tray-icon
-```
-
-This will build the application with the system tray icon support. Note that this requires the GTK/ATK dependencies to be installed on your system.
-
-## System Dependencies
-
-The application requires several system dependencies:
-
-1. GTK/ATK dependencies (only needed if you want to build with the system tray icon feature)
-2. ALSA libraries for audio recording
-3. libxdo for keyboard simulation (used to insert transcribed text at cursor position)
-
-Install the following packages for your distribution:
-
-### Ubuntu/Debian/Pop!_OS
-
-For Ubuntu/Debian/Pop!_OS 22.04 and newer:
-
-```bash
-sudo apt-get install libgtk-3-dev libatk1.0-dev libcairo2-dev libayatana-appindicator3-dev
-sudo apt install -y libasound2-dev
-sudo apt install libclang-14-dev
-sudo apt install libxdo-dev
-sudo apt-get install -y libxcb-shape0-dev libxcb-xfixes0-dev
-```
-
-`sudo apt install debhelper cargo rustc libclang-dev`
-
-For older Ubuntu/Debian versions (before 22.04):
-
-```bash
-sudo apt-get install libgtk-3-dev libatk1.0-dev libcairo2-dev libappindicator3-dev
-sudo apt install -y libasound2-dev
-sudo apt install libxdo-dev
-```
-
-### Fedora
-
-```bash
-sudo dnf install gtk3-devel atk-devel cairo-devel libappindicator-gtk3-devel
-sudo dnf install -y alsa-lib-devel
-sudo dnf install libxdo-devel
-```
-
-### Arch Linux
-
-```bash
-sudo pacman -S gtk3 atk cairo libappindicator-gtk3
-sudo pacman -S alsa-lib
-sudo pacman -S xdotool
-```
-
-## Running
-
-```bash
-cargo run
-```
-
-Or with the system tray icon:
-
-```bash
-cargo run --features tray-icon --features cuda
-```
-
-### Build with System Tray Icon
-
-```bash
-cargo build --features tray-icon --features cuda
-```
-
-## Data Storage
-
-The application follows the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html) for storing data:
-
-- Configuration files are stored in `~/.config/voice_input/` (or the equivalent XDG config directory)
-- Model weights are stored in `~/.local/share/voice_input/models/` (or the equivalent XDG data directory)
-
-When you first run the application, it will download the necessary model files to the appropriate XDG directory. For backward compatibility, the application will also check the current directory for model files.
-
-## Debian Package
-
-### Building the Debian Package
-
-To build a Debian package (.deb) for easy installation, you can use the provided script:
-
-```bash
-./build_deb.sh
-```
-
-Or manually run:
-
-```bash
-dpkg-buildpackage -us -uc -b
-```
-
-This will create a .deb file in the parent directory.
-
-### Installing the Debian Package
-
-To install the generated Debian package:
-
-```bash
-sudo dpkg -i ../voice-input_0.1.9-1_amd64.deb
-sudo apt-get install -f  # Install any missing dependencies
-```
-
-After installation, you can launch the application from your application menu or by running `voice-input` in the terminal. The application will also start automatically when you log in to your system.
-
-
-reproducing Github actions
-```bash
-docker run --rm -it ghcr.io/catthehacker/ubuntu:act-22.04 bash
-apt-get update -qy
-apt-get install -qy \
-  build-essential curl git pkg-config cmake \
-  libssl-dev \
-  libasound2-dev \
-  libx11-dev libxtst-dev libxi-dev libxkbcommon-dev \
-  clang llvm-dev libclang-dev
-
-# Optional: if you build with the tray feature, also:
-# apt-get install -qy libgtk-3-dev libappindicator3-dev
-
-# Point bindgen to libclang (best: use llvm-config)
-export LIBCLANG_PATH="$(llvm-config --libdir)"
-
-# Sanity check: should exist
-ls -l "$LIBCLANG_PATH/libclang.so" || echo "libclang.so not found in $LIBCLANG_PATH"
-
-curl https://sh.rustup.rs -sSf | sh -s -- -y
-source $HOME/.cargo/env
-
-git clone https://github.com/alantsov/voice-input.git
-cd voice-input
-
-# Build again
-cargo build --release
-# or, if your CI enables it:
-# cargo build --release --features tray-icon
-
-```
-
-
-How to cut a release:
-```bash
-# Ensure your changes are committed on the main branch (or your release branch)
-# Bump version in Cargo.toml if needed.
-
-git tag v0.2.3
-git push origin v0.2.3
-```
-
-
-## Regenerating Icons
-
-The app icons are generated from a single SVG source and produced in multiple sizes and color variants for the hicolor icon theme.
-
-- Source SVG: assets/icon-src/voice-input.svg
-- Generator script: scripts/voice_input_asset_generator.sh
-- Output directories: assets/icons/hicolor/
-  - PNGs: assets/icons/hicolor/{16x16,22x22,24x24,32x32,48x48}/apps/
-  - SVGs (scalable): assets/icons/hicolor/scalable/apps/
-- Variants generated:
-  - Base: voice-input-{blue,red,yellow,white}.{svg,png}
-  - Translate (with "T"): voice-input-translate-{blue,red,yellow,white}.{svg,png}
-
-Prerequisites (one of the following is required):
-- rsvg-convert (from librsvg)
-- or Inkscape (1.0+)
-
-How to run (from repo root or any directory):
-
-```bash
-bash scripts/voice_input_asset_generator.sh
-```
-
-Notes:
-- The script resolves paths relative to the repository; it works regardless of your current working directory.
-- To change the color palette or sizes, edit the COLORS map and SIZES array inside scripts/voice_input_asset_generator.sh.
-- Debian packaging and desktop files expect icons under assets/icons/hicolor/; keep the output paths unchanged unless you also update packaging/install rules.
+# Voice Input
+Dictate anywhere on your computer. Hold Ctrl+CapsLock to record, release to insert the transcription at your cursor.
+## What it does
+- Press and hold Ctrl+CapsLock to start recording
+- Release the keys to stop and insert text where you’re typing
+- Saves each recording as a timestamped WAV file
+- Uses your GPU automatically if available for faster transcription
+- Optional system tray icon
+
+## Install
+- Debian/Ubuntu: Download the latest .deb from Releases and install:
+    - Double-click the .deb, or run: sudo dpkg -i path/to/voice-input_*.deb && sudo apt-get -f install
+
+- Other Linux: See Advanced for building from source
+
+Note: On first run, the app downloads speech model files to your user data directory.
+## Run
+- After installing the .deb, launch “Voice Input” from your applications menu
+- Or run from a terminal: voice-input
+
+Tip: The app can start automatically on login when installed via the .deb.
+## Use
+- Start recording: Hold Ctrl+CapsLock
+- Stop and insert text: Release the keys
+- System tray: click the tray icon for quick actions and settings
+
+## Requirements
+- A working microphone
+- Linux desktop environment
+- For best results with the tray icon: a system tray supported by your desktop
+
+GPU is optional. If available, it will be used automatically for faster transcription.
+## Data and privacy
+- Config: ~/.config/voice_input/
+- Models: ~/.local/share/voice_input/models/
+- Your transcriptions stay local unless you choose to share them
+
+## Troubleshooting
+- Shortcut doesn’t work: Check for conflicts with other apps using CapsLock shortcuts, set another shortcut for voice-input in tray menu
+- No microphone input: Verify input device in system sound settings and mic permissions
+- Text not inserted: Ensure an editable text field is focused; if using Wayland, try an XWayland app or enable assistive/automation permissions
+- Slow transcription: use `small` model
+
+## Uninstall
+- If installed via .deb: sudo apt remove voice-input
+- Optional: Manually delete config and models from the paths above
+
+## Advanced
+- Building from source, optional tray icon, CUDA, and packaging instructions: See the Advanced section in the project documentation.
