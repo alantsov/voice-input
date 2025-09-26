@@ -46,4 +46,4 @@ GPU is optional. If available, it will be used automatically for faster transcri
 - Optional: Manually delete config and models from the paths above
 
 ## Advanced
-- Building from source, optional tray icon, CUDA, and packaging instructions: See the Advanced section in the project documentation.
+- Building from source, optional tray icon, CUDA, and packaging instructions: See the [Advanced](ADVANCED.md) section in the project documentation.
